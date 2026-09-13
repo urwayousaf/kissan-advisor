@@ -11,7 +11,7 @@ const AI_URL = "http://127.0.0.1:8000";
 function formatDate(date) {
   if (!date) return "-";
 
-  return new Date(date).toLocaleDateString("en-GB", {
+  return new Date(date).toLocaleDateString("ur-PK", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -26,79 +26,164 @@ function formatDiseaseName(name) {
     .replace(/_/g, " ");
 }
 
-function getWeatherDescription(code) {
-  const weatherMap = {
-    0: "Clear sky",
-    1: "Mainly clear",
-    2: "Partly cloudy",
-    3: "Overcast",
-    45: "Foggy",
-    48: "Depositing rime fog",
-    51: "Light drizzle",
-    53: "Moderate drizzle",
-    55: "Dense drizzle",
-    61: "Light rain",
-    63: "Moderate rain",
-    65: "Heavy rain",
-    71: "Light snow",
-    73: "Moderate snow",
-    75: "Heavy snow",
-    80: "Light rain showers",
-    81: "Moderate rain showers",
-    82: "Heavy rain showers",
-    95: "Thunderstorm",
-    96: "Thunderstorm with hail",
-    99: "Thunderstorm with heavy hail",
+function getCropNameUrdu(name) {
+  const cropMap = {
+    Wheat: "گندم",
+    wheat: "گندم",
+    Tomato: "ٹماٹر",
+    tomato: "ٹماٹر",
+    Maize: "مکئی",
+    maize: "مکئی",
+    Rice: "چاول",
+    rice: "چاول",
+    Potato: "آلو",
+    potato: "آلو",
   };
 
-  return weatherMap[code] || "Unknown weather";
+  return cropMap[name] || name || "گندم";
+}
+
+function getDiseaseNameUrdu(name) {
+  const diseaseMap = {
+    BrownRust: "براؤن رسٹ",
+    YellowRust: "یلو رسٹ",
+    Septoria: "سیپٹوریا",
+    Mildew: "ملڈیو",
+    Healthy: "صحت مند",
+    Brown_Rust: "براؤن رسٹ",
+    Yellow_Rust: "یلو رسٹ",
+  };
+
+  return diseaseMap[name] || formatDiseaseName(name);
+}
+
+function getStatusUrdu(status) {
+  if (status === "Pending") return "زیرِ التوا";
+  if (status === "Verified") return "تصدیق شدہ";
+
+  return status || "نامعلوم";
+}
+
+/* =========================================================
+   ADVICE VOICE DATA HELPERS
+========================================================= */
+
+function createAdvicePayload(text, voiceNote = "") {
+  return JSON.stringify({
+    type: "KISSAN_ADVISOR_ADVICE",
+    text: text || "",
+    voiceNote: voiceNote || "",
+  });
+}
+
+function parseAdvice(advice) {
+  if (!advice) {
+    return {
+      text: "",
+      voiceNote: "",
+    };
+  }
+
+  if (typeof advice === "object") {
+    return {
+      text: advice.text || "",
+      voiceNote: advice.voiceNote || "",
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(advice);
+
+    if (
+      parsed &&
+      parsed.type === "KISSAN_ADVISOR_ADVICE"
+    ) {
+      return {
+        text: parsed.text || "",
+        voiceNote: parsed.voiceNote || "",
+      };
+    }
+  } catch {
+    // Old normal text advice
+  }
+
+  return {
+    text: advice,
+    voiceNote: "",
+  };
+}
+
+/* =========================================================
+   WEATHER
+========================================================= */
+
+function getWeatherDescription(code) {
+  const weatherMap = {
+    0: "صاف آسمان",
+    1: "زیادہ تر صاف",
+    2: "جزوی طور پر ابر آلود",
+    3: "مکمل ابر آلود",
+    45: "دھند",
+    48: "جمی ہوئی دھند",
+    51: "ہلکی بوندا باندی",
+    53: "درمیانی بوندا باندی",
+    55: "تیز بوندا باندی",
+    61: "ہلکی بارش",
+    63: "درمیانی بارش",
+    65: "تیز بارش",
+    71: "ہلکی برف باری",
+    73: "درمیانی برف باری",
+    75: "تیز برف باری",
+    80: "ہلکی بارش کی بوچھاڑ",
+    81: "درمیانی بارش کی بوچھاڑ",
+    82: "تیز بارش کی بوچھاڑ",
+    95: "گرج چمک",
+    96: "گرج چمک کے ساتھ اولے",
+    99: "تیز اولوں کے ساتھ گرج چمک",
+  };
+
+  return weatherMap[code] || "موسم کی معلومات دستیاب نہیں";
 }
 
 function getSprayAlert(weather) {
   if (!weather) {
     return {
       type: "info",
-      title: "Weather data unavailable",
+      title: "موسم کی معلومات دستیاب نہیں",
       message:
-        "Use your location to check current weather before spraying.",
+        "اسپرے کرنے سے پہلے اپنی لوکیشن استعمال کرکے موجودہ موسم چیک کریں۔",
     };
   }
 
-  const rain =
-    Number(weather.precipitation || 0);
+  const rain = Number(weather.precipitation || 0);
+  const rainProbability = Number(
+    weather.precipitationProbability || 0
+  );
+  const wind = Number(weather.windSpeed || 0);
 
-  const rainProbability =
-    Number(weather.precipitationProbability || 0);
-
-  const wind =
-    Number(weather.windSpeed || 0);
-
-  if (
-    rain > 0.1 ||
-    rainProbability >= 60
-  ) {
+  if (rain > 0.1 || rainProbability >= 60) {
     return {
       type: "danger",
-      title: "Avoid spraying now",
+      title: "ابھی اسپرے نہ کریں",
       message:
-        "Rain is possible or currently occurring. Agricultural spray may be affected by rainfall. Check again when conditions improve.",
+        "بارش کا امکان ہے یا بارش ہو رہی ہے۔ بارش زرعی اسپرے کے اثر کو کم کر سکتی ہے۔ موسم بہتر ہونے پر دوبارہ چیک کریں۔",
     };
   }
 
   if (wind >= 25) {
     return {
       type: "warning",
-      title: "Strong wind detected",
+      title: "تیز ہوا چل رہی ہے",
       message:
-        "Wind conditions may increase spray drift. Consider waiting for calmer conditions and follow the product label.",
+        "تیز ہوا اسپرے کو دوسری جگہ منتقل کر سکتی ہے۔ پرسکون موسم کا انتظار کریں اور دوا کے لیبل پر دی گئی ہدایات پر عمل کریں۔",
     };
   }
 
   return {
     type: "success",
-    title: "Weather looks suitable",
+    title: "موسم اسپرے کے لیے مناسب ہے",
     message:
-      "Current conditions do not show a major rain or strong-wind warning. Still follow the pesticide label and Agriculture Officer advice.",
+      "موجودہ موسم میں بارش یا تیز ہوا کا بڑا خطرہ نظر نہیں آ رہا۔ پھر بھی دوا کے لیبل اور زرعی افسر کی ہدایات پر عمل کریں۔",
   };
 }
 
@@ -111,85 +196,85 @@ function getDiseaseAdvice(disease) {
     case "BrownRust":
       return {
         symptoms:
-          "Brown or orange-brown rust pustules may appear on wheat leaves.",
+          "گندم کے پتوں پر بھورے یا نارنجی بھورے زنگ جیسے دھبے یا دانے ظاہر ہو سکتے ہیں۔",
         treatment:
-          "Monitor the crop closely and consult an Agriculture Officer for appropriate locally approved treatment.",
+          "فصل کو باقاعدگی سے چیک کریں اور مناسب مقامی علاج کے لیے زرعی افسر سے مشورہ کریں۔",
         pesticide:
-          "Use only a locally registered fungicide recommended for wheat by an Agriculture Officer or according to the product label.",
+          "صرف وہی مقامی طور پر رجسٹرڈ فنگس کش دوا استعمال کریں جو گندم کے لیے منظور شدہ ہو اور زرعی افسر یا دوا کے لیبل کے مطابق ہو۔",
         prevention:
-          "Use suitable resistant varieties where available, monitor the field regularly and maintain good crop management.",
+          "جہاں دستیاب ہوں وہاں بیماری کے خلاف مزاحمت رکھنے والی اقسام استعمال کریں، فصل کو باقاعدگی سے دیکھیں اور اچھی زرعی دیکھ بھال کریں۔",
         weather:
-          "Avoid spraying during rain or strong wind. Check local weather conditions before applying any agricultural product.",
+          "بارش یا تیز ہوا میں اسپرے نہ کریں۔ زرعی دوا استعمال کرنے سے پہلے مقامی موسم چیک کریں۔",
       };
 
     case "YellowRust":
       return {
         symptoms:
-          "Yellow to yellow-orange rust pustules may develop in lines on wheat leaves.",
+          "گندم کے پتوں پر پیلے یا زرد نارنجی رنگ کے زنگ نما دانے لکیروں کی شکل میں ظاہر ہو سکتے ہیں۔",
         treatment:
-          "Monitor the crop regularly and seek Agriculture Officer guidance for timely management.",
+          "فصل کو باقاعدگی سے چیک کریں اور بروقت انتظام کے لیے زرعی افسر سے مشورہ کریں۔",
         pesticide:
-          "Use only a locally registered fungicide approved for wheat and follow the product label and expert recommendation.",
+          "صرف گندم کے لیے مقامی طور پر رجسٹرڈ فنگس کش دوا استعمال کریں اور دوا کے لیبل اور ماہر کی ہدایت پر عمل کریں۔",
         prevention:
-          "Use resistant varieties where available, monitor fields early and follow recommended crop management practices.",
+          "جہاں دستیاب ہوں وہاں مزاحم اقسام استعمال کریں، فصل کو شروع سے چیک کریں اور تجویز کردہ زرعی طریقوں پر عمل کریں۔",
         weather:
-          "Avoid spraying during rain or strong wind. Check local weather conditions before application.",
+          "بارش یا تیز ہوا میں اسپرے نہ کریں۔ دوا استعمال کرنے سے پہلے موسم چیک کریں۔",
       };
 
     case "Septoria":
       return {
         symptoms:
-          "Septoria can cause leaf lesions, spotting and gradual yellowing or drying of wheat leaves.",
+          "سیپٹوریا کی وجہ سے گندم کے پتوں پر دھبے، زخم اور آہستہ آہستہ پیلا پن یا خشکی پیدا ہو سکتی ہے۔",
         treatment:
-          "Monitor disease development and consult an Agriculture Officer for appropriate management based on crop stage and local conditions.",
+          "بیماری کی صورتحال دیکھتے رہیں اور فصل کے مرحلے اور مقامی حالات کے مطابق زرعی افسر سے مناسب علاج کے لیے مشورہ کریں۔",
         pesticide:
-          "Use only locally registered wheat fungicide products when recommended by an agricultural expert and follow the label.",
+          "صرف مقامی طور پر رجسٹرڈ گندم کی فنگس کش دوا استعمال کریں، وہ بھی زرعی ماہر کی سفارش اور دوا کے لیبل کے مطابق۔",
         prevention:
-          "Maintain good field hygiene, monitor lower leaves and follow recommended wheat crop management practices.",
+          "کھیت کی صفائی برقرار رکھیں، نچلے پتوں کو چیک کریں اور گندم کی تجویز کردہ دیکھ بھال پر عمل کریں۔",
         weather:
-          "Wet conditions can favor fungal disease development. Check weather conditions before any spray application.",
+          "زیادہ نمی والی صورتحال فنگس کی بیماری کو بڑھا سکتی ہے۔ اسپرے سے پہلے موسم چیک کریں۔",
       };
 
     case "Mildew":
       return {
         symptoms:
-          "A white or gray powdery growth may appear on affected wheat leaves.",
+          "متاثرہ گندم کے پتوں پر سفید یا سرمئی پاؤڈر جیسی تہہ ظاہر ہو سکتی ہے۔",
         treatment:
-          "Improve crop monitoring and consult an Agriculture Officer for the appropriate management strategy.",
+          "فصل کی نگرانی بہتر کریں اور مناسب علاج کے لیے زرعی افسر سے مشورہ کریں۔",
         pesticide:
-          "Use only a locally registered product recommended for wheat mildew and follow the product label.",
+          "صرف گندم کے ملڈیو کے لیے مقامی طور پر رجسٹرڈ دوا استعمال کریں اور دوا کے لیبل پر عمل کریں۔",
         prevention:
-          "Avoid excessive crop density where possible, maintain good field management and use resistant varieties where available.",
+          "جہاں ممکن ہو فصل کی غیر ضروری کثافت سے بچیں، کھیت کی اچھی دیکھ بھال کریں اور مزاحم اقسام استعمال کریں۔",
         weather:
-          "Avoid spraying during rain or strong wind and check local weather conditions first.",
+          "بارش یا تیز ہوا میں اسپرے نہ کریں اور پہلے مقامی موسم چیک کریں۔",
       };
 
     case "Healthy":
       return {
         symptoms:
-          "The AI model did not detect one of the trained wheat diseases in the uploaded image.",
+          "AI ماڈل نے اپ لوڈ کی گئی تصویر میں اپنی تربیت کے مطابق گندم کی کوئی مخصوص بیماری نہیں پائی۔",
         treatment:
-          "No disease-specific treatment is recommended from this AI result. Continue regular crop monitoring.",
+          "اس AI نتیجے کی بنیاد پر کسی مخصوص بیماری کا علاج ضروری نہیں۔ فصل کی باقاعدگی سے نگرانی جاری رکھیں۔",
         pesticide:
-          "Do not apply pesticide unnecessarily. Use agricultural products only when there is a confirmed need and expert recommendation.",
+          "غیر ضروری طور پر کیڑے مار یا فنگس کش دوا استعمال نہ کریں۔ دوا صرف تصدیق شدہ ضرورت اور ماہر کی سفارش پر استعمال کریں۔",
         prevention:
-          "Continue regular field inspection and follow recommended wheat crop management practices.",
+          "فصل کا باقاعدگی سے معائنہ کریں اور گندم کی تجویز کردہ زرعی دیکھ بھال جاری رکھیں۔",
         weather:
-          "Continue monitoring local weather conditions before agricultural spray applications.",
+          "زرعی اسپرے سے پہلے مقامی موسم کی صورتحال چیک کرتے رہیں۔",
       };
 
     default:
       return {
         symptoms:
-          "The AI result could not be matched with a specific advisory.",
+          "AI نتیجے کو کسی مخصوص بیماری کی رہنمائی سے نہیں ملایا جا سکا۔",
         treatment:
-          "Please consult an Agriculture Officer for verification.",
+          "براہِ کرم تصدیق کے لیے زرعی افسر سے مشورہ کریں۔",
         pesticide:
-          "Do not apply any pesticide based only on an uncertain AI result.",
+          "صرف غیر یقینی AI نتیجے کی بنیاد پر کوئی دوا استعمال نہ کریں۔",
         prevention:
-          "Continue monitoring the crop and seek expert guidance.",
+          "فصل کی نگرانی جاری رکھیں اور ماہر سے رہنمائی حاصل کریں۔",
         weather:
-          "Check local weather conditions before any agricultural spray.",
+          "زرعی اسپرے سے پہلے مقامی موسم چیک کریں۔",
       };
   }
 }
@@ -212,7 +297,6 @@ function Auth({
   return (
     <div className="auth-page">
       <div className="auth-card">
-
         <div className="auth-logo">🌱</div>
 
         <div className="auth-title">
@@ -220,14 +304,14 @@ function Auth({
 
           <h2>
             {farmerMode === "login"
-              ? "Welcome Back"
-              : "Create Farmer Account"}
+              ? "خوش آمدید"
+              : "کسان اکاؤنٹ بنائیں"}
           </h2>
 
           <p>
             {farmerMode === "login"
-              ? "Login to continue to your farming dashboard."
-              : "Create your account and start checking your crops."}
+              ? "اپنے کسان ڈیش بورڈ پر جانے کے لیے لاگ اِن کریں۔"
+              : "اپنا اکاؤنٹ بنائیں اور اپنی فصلوں کی جانچ شروع کریں۔"}
           </p>
         </div>
 
@@ -238,16 +322,15 @@ function Auth({
         )}
 
         <form onSubmit={handleAuth} autoComplete="on">
-
           {farmerMode === "register" && (
             <div className="form-group">
-              <label htmlFor="name">Full Name</label>
+              <label htmlFor="name">پورا نام</label>
 
               <input
                 id="name"
                 name="name"
                 type="text"
-                placeholder="e.g. Muhammad Ali"
+                placeholder="مثلاً محمد علی"
                 value={formData.name}
                 onChange={(e) =>
                   setFormData((prev) => ({
@@ -262,13 +345,13 @@ function Auth({
           )}
 
           <div className="form-group">
-            <label htmlFor="email">Email Address</label>
+            <label htmlFor="email">ای میل ایڈریس</label>
 
             <input
               id="email"
               name="email"
               type="email"
-              placeholder="e.g. farmer@gmail.com"
+              placeholder="مثلاً farmer@gmail.com"
               value={formData.email}
               onChange={(e) =>
                 setFormData((prev) => ({
@@ -282,13 +365,13 @@ function Auth({
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Password</label>
+            <label htmlFor="password">پاس ورڈ</label>
 
             <input
               id="password"
               name="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="اپنا پاس ورڈ درج کریں"
               value={formData.password}
               onChange={(e) =>
                 setFormData((prev) => ({
@@ -306,7 +389,7 @@ function Auth({
             />
 
             <small className="input-help">
-              Minimum 6 characters
+              کم از کم 6 حروف
             </small>
           </div>
 
@@ -316,18 +399,17 @@ function Auth({
             disabled={loading}
           >
             {loading
-              ? "⏳ Please wait..."
+              ? "⏳ براہِ کرم انتظار کریں..."
               : farmerMode === "login"
-              ? "🔐 Login to Account"
-              : "🌱 Create Account"}
+              ? "🔐 اکاؤنٹ میں لاگ اِن کریں"
+              : "🌱 اکاؤنٹ بنائیں"}
           </button>
         </form>
 
         <div className="auth-switch">
-
           {farmerMode === "login" ? (
             <>
-              <span>Don't have an account?</span>
+              <span>کیا آپ کا اکاؤنٹ نہیں ہے؟</span>
 
               <button
                 type="button"
@@ -342,12 +424,12 @@ function Auth({
                   });
                 }}
               >
-                Register
+                رجسٹر کریں
               </button>
             </>
           ) : (
             <>
-              <span>Already have an account?</span>
+              <span>کیا آپ کا پہلے سے اکاؤنٹ ہے؟</span>
 
               <button
                 type="button"
@@ -362,11 +444,10 @@ function Auth({
                   });
                 }}
               >
-                Login
+                لاگ اِن
               </button>
             </>
           )}
-
         </div>
 
         <button
@@ -377,9 +458,8 @@ function Auth({
             setPage("home");
           }}
         >
-          ← Back to Home
+          ← ہوم پر واپس جائیں
         </button>
-
       </div>
     </div>
   );
@@ -395,20 +475,18 @@ function StaffLogin({
   onLogin,
 }) {
   const [mode, setMode] = useState("login");
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   const isAdmin = staffRole === "admin";
 
   const roleName = isAdmin
-    ? "Admin"
-    : "Agriculture Officer";
+    ? "ایڈمن"
+    : "زرعی افسر";
 
   const switchMode = (newMode) => {
     setMode(newMode);
@@ -429,17 +507,17 @@ function StaffLogin({
         const cleanEmail = email.trim().toLowerCase();
 
         if (cleanName.length < 2) {
-          throw new Error("Please enter your full name.");
+          throw new Error("براہِ کرم اپنا پورا نام درج کریں۔");
         }
 
         if (password.length < 6) {
           throw new Error(
-            "Password must be at least 6 characters."
+            "پاس ورڈ کم از کم 6 حروف کا ہونا چاہیے۔"
           );
         }
 
         if (password !== confirmPassword) {
-          throw new Error("Passwords do not match.");
+          throw new Error("دونوں پاس ورڈ ایک جیسے نہیں ہیں۔");
         }
 
         const endpoint = isAdmin
@@ -471,13 +549,13 @@ function StaffLogin({
 
         if (!response.ok) {
           throw new Error(
-            data.message || "Registration failed."
+            data.message || "رجسٹریشن مکمل نہیں ہو سکی۔"
           );
         }
 
         if (!data.token || !data.user) {
           throw new Error(
-            "Account created, but login session could not be created."
+            "اکاؤنٹ بن گیا لیکن لاگ اِن سیشن نہیں بن سکا۔"
           );
         }
 
@@ -513,7 +591,7 @@ function StaffLogin({
 
       if (!response.ok) {
         throw new Error(
-          data.message || "Login failed."
+          data.message || "لاگ اِن نہیں ہو سکا۔"
         );
       }
 
@@ -522,7 +600,7 @@ function StaffLogin({
         data.user?.role !== "admin"
       ) {
         throw new Error(
-          "This account does not have Admin access."
+          "اس اکاؤنٹ کو ایڈمن رسائی حاصل نہیں ہے۔"
         );
       }
 
@@ -531,22 +609,21 @@ function StaffLogin({
         data.user?.role !== "officer"
       ) {
         throw new Error(
-          "This account does not have Officer access."
+          "اس اکاؤنٹ کو افسر کی رسائی حاصل نہیں ہے۔"
         );
       }
 
       if (!data.token || !data.user) {
         throw new Error(
-          "Login response is incomplete."
+          "لاگ اِن کا جواب نامکمل ہے۔"
         );
       }
 
       onLogin(data.token, data.user);
-
     } catch (err) {
       setError(
         err.message ||
-        "Unable to complete request."
+        "درخواست مکمل نہیں ہو سکی۔"
       );
     } finally {
       setLoading(false);
@@ -556,43 +633,39 @@ function StaffLogin({
   return (
     <div className="auth-page">
       <div className="auth-card">
-
         <div className="auth-logo">
           {isAdmin ? "⚙️" : "👨‍🌾"}
         </div>
 
         <div className="auth-title">
-
           <span className="small-label">
             KISSAN ADVISOR
           </span>
 
           <h2>
             {mode === "login"
-              ? `${roleName} Login`
-              : `Create ${roleName} Account`}
+              ? `${roleName} لاگ اِن`
+              : `${roleName} اکاؤنٹ بنائیں`}
           </h2>
 
           <p>
             {mode === "login"
               ? isAdmin
-                ? "Login to monitor and manage the complete system."
-                : "Login to review farmer crop disease cases."
+                ? "مکمل نظام کی نگرانی اور انتظام کے لیے لاگ اِن کریں۔"
+                : "کسانوں کے فصلوں کے کیسز کا جائزہ لینے کے لیے لاگ اِن کریں۔"
               : isAdmin
-                ? "Create an administrator account for system management."
-                : "Create your Agriculture Officer account to review farmer cases."}
+              ? "نظام کے انتظام کے لیے ایڈمن اکاؤنٹ بنائیں۔"
+              : "کسانوں کے کیسز کا جائزہ لینے کے لیے زرعی افسر اکاؤنٹ بنائیں۔"}
           </p>
-
         </div>
 
         <div className="auth-switch">
-
           <button
             type="button"
             className={mode === "login" ? "active" : ""}
             onClick={() => switchMode("login")}
           >
-            🔐 Login
+            🔐 لاگ اِن
           </button>
 
           <button
@@ -600,9 +673,8 @@ function StaffLogin({
             className={mode === "register" ? "active" : ""}
             onClick={() => switchMode("register")}
           >
-            📝 Register
+            📝 رجسٹر کریں
           </button>
-
         </div>
 
         {error && (
@@ -612,12 +684,10 @@ function StaffLogin({
         )}
 
         <form onSubmit={handleSubmit} autoComplete="on">
-
           {mode === "register" && (
             <div className="form-group">
-
               <label htmlFor="staff-name">
-                Full Name
+                پورا نام
               </label>
 
               <input
@@ -626,8 +696,8 @@ function StaffLogin({
                 type="text"
                 placeholder={
                   isAdmin
-                    ? "e.g. System Administrator"
-                    : "e.g. Muhammad Ali"
+                    ? "مثلاً سسٹم ایڈمنسٹریٹر"
+                    : "مثلاً محمد علی"
                 }
                 value={name}
                 onChange={(e) =>
@@ -636,14 +706,12 @@ function StaffLogin({
                 autoComplete="name"
                 required
               />
-
             </div>
           )}
 
           <div className="form-group">
-
             <label htmlFor="staff-email">
-              Email Address
+              ای میل ایڈریس
             </label>
 
             <input
@@ -662,20 +730,18 @@ function StaffLogin({
               autoComplete="email"
               required
             />
-
           </div>
 
           <div className="form-group">
-
             <label htmlFor="staff-password">
-              Password
+              پاس ورڈ
             </label>
 
             <input
               id="staff-password"
               name="password"
               type="password"
-              placeholder="Enter your password"
+              placeholder="اپنا پاس ورڈ درج کریں"
               value={password}
               onChange={(e) =>
                 setPassword(e.target.value)
@@ -690,23 +756,21 @@ function StaffLogin({
             />
 
             <small className="input-help">
-              Minimum 6 characters
+              کم از کم 6 حروف
             </small>
-
           </div>
 
           {mode === "register" && (
             <div className="form-group">
-
               <label htmlFor="staff-confirm-password">
-                Confirm Password
+                پاس ورڈ دوبارہ درج کریں
               </label>
 
               <input
                 id="staff-confirm-password"
                 name="confirmPassword"
                 type="password"
-                placeholder="Re-enter your password"
+                placeholder="اپنا پاس ورڈ دوبارہ درج کریں"
                 value={confirmPassword}
                 onChange={(e) =>
                   setConfirmPassword(e.target.value)
@@ -715,7 +779,6 @@ function StaffLogin({
                 minLength="6"
                 required
               />
-
             </div>
           )}
 
@@ -725,24 +788,22 @@ function StaffLogin({
             disabled={loading}
           >
             {loading
-              ? "⏳ Please wait..."
+              ? "⏳ براہِ کرم انتظار کریں..."
               : mode === "login"
               ? isAdmin
-                ? "⚙️ Login as Admin"
-                : "👨‍🌾 Login as Officer"
+                ? "⚙️ ایڈمن کے طور پر لاگ اِن کریں"
+                : "👨‍🌾 افسر کے طور پر لاگ اِن کریں"
               : isAdmin
-              ? "⚙️ Create Admin Account"
-              : "👨‍🌾 Create Officer Account"}
+              ? "⚙️ ایڈمن اکاؤنٹ بنائیں"
+              : "👨‍🌾 افسر اکاؤنٹ بنائیں"}
           </button>
-
         </form>
 
         <div className="auth-switch">
-
           {mode === "login" ? (
             <>
               <span>
-                Don't have an account?
+                کیا آپ کا اکاؤنٹ نہیں ہے؟
               </span>
 
               <button
@@ -751,13 +812,13 @@ function StaffLogin({
                   switchMode("register")
                 }
               >
-                Register
+                رجسٹر کریں
               </button>
             </>
           ) : (
             <>
               <span>
-                Already have an account?
+                کیا آپ کا پہلے سے اکاؤنٹ ہے؟
               </span>
 
               <button
@@ -766,11 +827,10 @@ function StaffLogin({
                   switchMode("login")
                 }
               >
-                Login
+                لاگ اِن
               </button>
             </>
           )}
-
         </div>
 
         <button
@@ -782,9 +842,8 @@ function StaffLogin({
             setPage("home");
           }}
         >
-          ← Back to Home
+          ← ہوم پر واپس جائیں
         </button>
-
       </div>
     </div>
   );
@@ -810,9 +869,7 @@ function Home({
 
   return (
     <div className="app">
-
       <nav className="navbar">
-
         <div
           className="logo"
           onClick={() => setPage("home")}
@@ -822,13 +879,12 @@ function Home({
         </div>
 
         <div className="nav-links">
-
           <button
             type="button"
             className="nav-btn active"
             onClick={() => setPage("home")}
           >
-            Home
+            ہوم
           </button>
 
           <button
@@ -836,7 +892,7 @@ function Home({
             className="nav-btn"
             onClick={openFarmerLogin}
           >
-            Farmer Login
+            کسان لاگ اِن
           </button>
 
           <button
@@ -844,7 +900,7 @@ function Home({
             className="register-nav"
             onClick={openRegister}
           >
-            Register
+            رجسٹر کریں
           </button>
 
           <button
@@ -854,7 +910,7 @@ function Home({
               setPage("officer-login")
             }
           >
-            Officer Panel
+            افسر پینل
           </button>
 
           <button
@@ -864,39 +920,35 @@ function Home({
               setPage("admin-login")
             }
           >
-            Admin
+            ایڈمن
           </button>
-
         </div>
       </nav>
 
       <section className="hero">
-
         <div className="hero-content">
-
           <div className="hero-badge">
-            🇵🇰 Pakistan's Smart Farming Assistant
+            🇵🇰 پاکستان کا اسمارٹ فارمنگ اسسٹنٹ
           </div>
 
           <h1>
-            Smart Crop Disease
+            فصل کی اسمارٹ بیماری
             <br />
-            <span>Detection & Advisory</span>
+            <span>تشخیص اور رہنمائی</span>
           </h1>
 
           <p>
-            Upload a crop leaf image and get AI-based disease
-            detection with expert agricultural advice.
+            فصل کے پتے کی تصویر اپ لوڈ کریں اور AI کی مدد سے
+            بیماری کی تشخیص اور زرعی ماہر کی رہنمائی حاصل کریں۔
           </p>
 
           <div className="hero-buttons">
-
             <button
               type="button"
               className="primary-btn"
               onClick={openFarmerLogin}
             >
-              Start as Farmer
+              کسان کے طور پر شروع کریں
               <span>→</span>
             </button>
 
@@ -907,24 +959,21 @@ function Home({
                 setPage("officer-login")
               }
             >
-              Agriculture Officer
+              زرعی افسر
             </button>
-
           </div>
 
           <div className="trust-row">
-            <span>✓ AI Disease Detection</span>
-            <span>✓ Expert Verification</span>
-            <span>✓ Urdu & Pashto Voice</span>
+            <span>✓ AI بیماری کی تشخیص</span>
+            <span>✓ ماہر کی تصدیق</span>
+            <span>✓ اردو وائس</span>
           </div>
-
         </div>
 
         <div className="hero-card">
-
           <div className="hero-card-top">
             <span className="live-dot"></span>
-            Smart Crop Analysis
+            اسمارٹ فصل تجزیہ
           </div>
 
           <div className="hero-card-icon">
@@ -932,63 +981,54 @@ function Home({
           </div>
 
           <h3>
-            Healthy Farming Starts Here
+            صحت مند کاشتکاری یہاں سے شروع کریں
           </h3>
 
           <p>
-            Detect crop diseases early and get reliable
-            agricultural guidance.
+            فصل کی بیماری کو جلد شناخت کریں اور قابلِ اعتماد
+            زرعی رہنمائی حاصل کریں۔
           </p>
 
           <div className="mini-stats">
-
             <div>
               <strong>AI</strong>
-              <span>Detection</span>
+              <span>تشخیص</span>
             </div>
 
             <div>
-              <strong>2+</strong>
-              <span>Languages</span>
+              <strong>اردو</strong>
+              <span>وائس</span>
             </div>
 
             <div>
               <strong>24/7</strong>
-              <span>Access</span>
+              <span>رسائی</span>
             </div>
-
           </div>
-
         </div>
-
       </section>
 
       <section className="features">
-
         <div className="section-heading">
-
-          <span>HOW IT WORKS</span>
+          <span>یہ کیسے کام کرتا ہے</span>
 
           <h2>
-            Everything a Farmer Needs
+            کسان کے لیے ضروری سہولیات
           </h2>
 
           <p>
-            Simple technology designed for real farmers.
+            حقیقی کسانوں کے لیے آسان اور سادہ ٹیکنالوجی۔
           </p>
-
         </div>
 
         <div className="feature-grid">
-
           <div className="feature-card">
             <div className="feature-icon">📷</div>
 
-            <h3>Upload Crop Image</h3>
+            <h3>فصل کی تصویر اپ لوڈ کریں</h3>
 
             <p>
-              Take a clear picture of the affected crop leaf
-              and upload it.
+              متاثرہ فصل کے پتے کی صاف تصویر لیں اور اسے اپ لوڈ کریں۔
             </p>
 
             <div className="feature-number">
@@ -999,11 +1039,10 @@ function Home({
           <div className="feature-card">
             <div className="feature-icon">🤖</div>
 
-            <h3>AI Disease Detection</h3>
+            <h3>AI بیماری کی تشخیص</h3>
 
             <p>
-              AI analyzes the image and identifies the
-              possible wheat disease.
+              AI تصویر کا تجزیہ کرکے ممکنہ گندم کی بیماری کی شناخت کرتا ہے۔
             </p>
 
             <div className="feature-number">
@@ -1014,11 +1053,10 @@ function Home({
           <div className="feature-card">
             <div className="feature-icon">👨‍🌾</div>
 
-            <h3>Expert Verification</h3>
+            <h3>ماہر کی تصدیق</h3>
 
             <p>
-              Agriculture officers review the result and
-              provide expert advice.
+              زرعی افسر نتیجے کا جائزہ لے کر ماہرانہ رہنمائی فراہم کرتا ہے۔
             </p>
 
             <div className="feature-number">
@@ -1029,38 +1067,32 @@ function Home({
           <div className="feature-card">
             <div className="feature-icon">🔊</div>
 
-            <h3>Voice Guidance</h3>
+            <h3>اردو وائس رہنمائی</h3>
 
             <p>
-              Listen to disease and treatment information
-              in your preferred language.
+              بیماری اور علاج کی معلومات اردو آواز میں سنیں۔
             </p>
 
             <div className="feature-number">
               04
             </div>
           </div>
-
         </div>
-
       </section>
 
       <footer>
-
         <div className="footer-logo">
           🌱 Kissan Advisor
         </div>
 
         <p>
-          Smart Farming Technology for Pakistan
+          پاکستان کے لیے اسمارٹ فارمنگ ٹیکنالوجی
         </p>
 
         <span>
           © 2026 Kissan Advisor
         </span>
-
       </footer>
-
     </div>
   );
 }
@@ -1081,24 +1113,19 @@ function WeatherSection({
 
   return (
     <section className="weather-section">
-
       <div className="section-header">
-
         <div>
-
           <p className="small-label">
-            SMART WEATHER
+            اسمارٹ موسم
           </p>
 
           <h2>
-            🌦️ Weather & Spray Alert
+            🌦️ موسم اور اسپرے الرٹ
           </h2>
 
           <p>
-            Check your local weather before applying
-            agricultural spray.
+            زرعی اسپرے کرنے سے پہلے اپنے علاقے کا موسم چیک کریں۔
           </p>
-
         </div>
 
         <button
@@ -1108,10 +1135,9 @@ function WeatherSection({
           disabled={weatherLoading || locationLoading}
         >
           {locationLoading || weatherLoading
-            ? "📍 Detecting..."
-            : "📍 Use My Location"}
+            ? "📍 لوکیشن معلوم ہو رہی ہے..."
+            : "📍 میری لوکیشن استعمال کریں"}
         </button>
-
       </div>
 
       {weatherError && (
@@ -1121,13 +1147,10 @@ function WeatherSection({
       )}
 
       {weather ? (
-
         <div className="weather-dashboard">
-
           <div className="weather-main-card">
-
             <div className="weather-location">
-              📍 {locationName || "Your Location"}
+              📍 {locationName || "آپ کی لوکیشن"}
             </div>
 
             <div className="weather-temperature">
@@ -1139,16 +1162,14 @@ function WeatherSection({
             </h3>
 
             <p>
-              Current local weather conditions
+              موجودہ مقامی موسم کی صورتحال
             </p>
-
           </div>
 
           <div className="weather-stats">
-
             <div className="weather-stat-card">
               <span>💧</span>
-              <small>Humidity</small>
+              <small>نمی</small>
               <strong>
                 {weather.humidity}%
               </strong>
@@ -1156,15 +1177,15 @@ function WeatherSection({
 
             <div className="weather-stat-card">
               <span>💨</span>
-              <small>Wind</small>
+              <small>ہوا</small>
               <strong>
-                {weather.windSpeed} km/h
+                {weather.windSpeed} کلومیٹر فی گھنٹہ
               </strong>
             </div>
 
             <div className="weather-stat-card">
               <span>🌧️</span>
-              <small>Rain Probability</small>
+              <small>بارش کا امکان</small>
               <strong>
                 {weather.precipitationProbability}%
               </strong>
@@ -1172,18 +1193,16 @@ function WeatherSection({
 
             <div className="weather-stat-card">
               <span>☔</span>
-              <small>Precipitation</small>
+              <small>بارش</small>
               <strong>
-                {weather.precipitation} mm
+                {weather.precipitation} ملی میٹر
               </strong>
             </div>
-
           </div>
 
           <div
             className={`spray-alert ${sprayAlert.type}`}
           >
-
             <div className="spray-alert-icon">
               {sprayAlert.type === "success"
                 ? "✅"
@@ -1196,7 +1215,7 @@ function WeatherSection({
 
             <div>
               <small>
-                SPRAY ALERT
+                اسپرے الرٹ
               </small>
 
               <h3>
@@ -1207,193 +1226,22 @@ function WeatherSection({
                 {sprayAlert.message}
               </p>
             </div>
-
           </div>
-
         </div>
-
       ) : (
-
         <div className="empty-state">
-
           <div>📍</div>
 
           <h3>
-            Location weather not loaded
+            لوکیشن کا موسم لوڈ نہیں ہوا
           </h3>
 
           <p>
-            Click "Use My Location" to get local
-            weather and spray conditions.
+            مقامی موسم اور اسپرے کی صورتحال دیکھنے کے لیے
+            "میری لوکیشن استعمال کریں" پر کلک کریں۔
           </p>
-
         </div>
-
       )}
-
-    </section>
-  );
-}
-
-/* =========================================================
-   VOICE ASSISTANT
-========================================================= */
-
-function VoiceAssistant({
-  voiceLanguage,
-  setVoiceLanguage,
-  startVoiceInput,
-  stopVoiceInput,
-  isListening,
-  voiceTranscript,
-  voiceAnswer,
-  speakAdvice,
-}) {
-  const supported =
-    typeof window !== "undefined" &&
-    !!(
-      window.SpeechRecognition ||
-      window.webkitSpeechRecognition
-    );
-
-  return (
-    <section className="voice-assistant-section">
-
-      <div className="section-header">
-
-        <div>
-
-          <p className="small-label">
-            VOICE ASSISTANT
-          </p>
-
-          <h2>
-            🎙️ Ask Kissan Advisor
-          </h2>
-
-          <p>
-            Speak your farming question and get a voice
-            response based on your crop analysis.
-          </p>
-
-        </div>
-
-      </div>
-
-      <div className="voice-assistant-card">
-
-        <div className="voice-assistant-icon">
-          {isListening ? "🎙️" : "🔊"}
-        </div>
-
-        <div className="voice-assistant-content">
-
-          <h3>
-            {isListening
-              ? "Listening..."
-              : "Voice Farming Assistant"}
-          </h3>
-
-          <p>
-            {supported
-              ? "Ask about disease, treatment, prevention or weather."
-              : "Voice recognition is not supported in this browser."}
-          </p>
-
-          <div className="voice-assistant-controls">
-
-            <select
-              value={voiceLanguage}
-              onChange={(e) =>
-                setVoiceLanguage(e.target.value)
-              }
-            >
-
-              <option value="ur-PK">
-                اردو
-              </option>
-
-              <option value="ps-PK">
-                پښتو
-              </option>
-
-              <option value="en-US">
-                English
-              </option>
-
-            </select>
-
-            {!isListening ? (
-
-              <button
-                type="button"
-                className="primary-btn"
-                onClick={startVoiceInput}
-                disabled={!supported}
-              >
-                🎙️ Ask by Voice
-              </button>
-
-            ) : (
-
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={stopVoiceInput}
-              >
-                ⏹️ Stop Listening
-              </button>
-
-            )}
-
-          </div>
-
-          {voiceTranscript && (
-
-            <div className="voice-message-box">
-
-              <small>
-                YOU SAID
-              </small>
-
-              <p>
-                {voiceTranscript}
-              </p>
-
-            </div>
-
-          )}
-
-          {voiceAnswer && (
-
-            <div className="voice-message-box">
-
-              <small>
-                KISSAN ADVISOR
-              </small>
-
-              <p>
-                {voiceAnswer}
-              </p>
-
-              <button
-                type="button"
-                className="secondary-btn"
-                onClick={() =>
-                  speakAdvice(voiceAnswer)
-                }
-              >
-                🔊 Listen Again
-              </button>
-
-            </div>
-
-          )}
-
-        </div>
-
-      </div>
-
     </section>
   );
 }
@@ -1411,8 +1259,6 @@ function Dashboard({
   showResult,
   analysisResult,
   error,
-  voiceLanguage,
-  setVoiceLanguage,
   fileInputRef,
   handleImageChange,
   handleAnalyze,
@@ -1420,22 +1266,67 @@ function Dashboard({
   speakAdvice,
   logout,
   shareCase,
-
   weather,
   locationName,
   weatherLoading,
   locationLoading,
   weatherError,
   getLocationWeather,
-
-  startVoiceInput,
-  stopVoiceInput,
-  isListening,
-  voiceTranscript,
-  voiceAnswer,
 }) {
   const [selectedHistoryCase, setSelectedHistoryCase] =
     useState(null);
+
+  const [chatMessage, setChatMessage] = useState("");
+  const [chatMessages, setChatMessages] = useState([]);
+
+  const handleTextChat = (e) => {
+    e.preventDefault();
+
+    const message = chatMessage.trim();
+    if (!message) return;
+
+    let reply =
+      "براہِ کرم پہلے اپنی فصل کی تصویر اپ لوڈ کرکے AI تجزیہ مکمل کریں، پھر میں اسی نتیجے کی بنیاد پر رہنمائی دوں گا۔";
+
+    if (currentResult) {
+      const text = message.toLowerCase();
+
+      if (
+        text.includes("بیماری") ||
+        text.includes("مسئلہ") ||
+        text.includes("disease")
+      ) {
+        reply = `اس تصویر کے AI تجزیے کے مطابق ممکنہ بیماری ${getDiseaseNameUrdu(currentResult.disease)} ہے اور اعتماد کی شرح ${currentResult.confidence}% ہے۔`;
+      } else if (
+        text.includes("علاج") ||
+        text.includes("treatment")
+      ) {
+        reply = advisory.treatment;
+      } else if (
+        text.includes("دوا") ||
+        text.includes("سپرے") ||
+        text.includes("pesticide")
+      ) {
+        reply = advisory.pesticide;
+      } else if (
+        text.includes("بچاؤ") ||
+        text.includes("احتیاط") ||
+        text.includes("prevention")
+      ) {
+        reply = advisory.prevention;
+      } else {
+        reply =
+          "آپ کے سوال کو موجودہ AI نتیجے کے ساتھ دیکھا گیا ہے۔ مزید مخصوص رہنمائی کے لیے زرعی افسر سے تصدیق حاصل کریں۔";
+      }
+    }
+
+    setChatMessages((previous) => [
+      ...previous,
+      { type: "user", text: message },
+      { type: "assistant", text: reply },
+    ]);
+    setChatMessage("");
+  };
 
   const pendingCases = cases.filter(
     (item) => item.status === "Pending"
@@ -1460,74 +1351,61 @@ function Dashboard({
       : null);
 
   const diseaseName =
-    formatDiseaseName(currentResult?.disease);
+    getDiseaseNameUrdu(currentResult?.disease);
 
   const advisory =
     getDiseaseAdvice(currentResult?.disease);
 
-  const voiceText = currentResult
-    ? currentResult.disease === "Healthy"
-      ? `The AI analysis indicates that your wheat crop appears healthy with ${currentResult.confidence} percent confidence. Continue regular crop monitoring and follow recommended farming practices.`
-      : `The AI analysis indicates possible ${diseaseName} in your wheat crop with ${currentResult.confidence} percent confidence. Please follow the recommended precautions and consult an Agriculture Officer before applying any pesticide.`
-    : "";
+  const latestAdvice =
+    parseAdvice(latestCase?.advice);
+
 
   return (
     <div className="dashboard-page">
-
       <nav className="dashboard-nav">
-
         <div className="logo">
           <span className="logo-icon">🌱</span>
           Kissan Advisor
         </div>
 
         <div className="user-area">
-
           <span>
-            Welcome, <strong>{farmer?.name}</strong>
+            خوش آمدید، <strong>{farmer?.name}</strong>
           </span>
 
           <button
             type="button"
             onClick={logout}
           >
-            Logout
+            لاگ آؤٹ
           </button>
-
         </div>
-
       </nav>
 
       <main className="dashboard-container">
-
         <div className="dashboard-heading">
-
           <div>
-
             <p className="small-label">
-              FARMER DASHBOARD
+              کسان ڈیش بورڈ
             </p>
 
             <h1>
-              Assalam-o-Alaikum, {farmer?.name} 👋
+              السلام علیکم، {farmer?.name} 👋
             </h1>
 
             <p>
-              Upload your wheat crop image to detect possible
-              diseases and get agricultural guidance.
+              اپنی گندم کی فصل کی تصویر اپ لوڈ کریں تاکہ ممکنہ بیماری
+              کی تشخیص اور زرعی رہنمائی حاصل کی جا سکے۔
             </p>
-
           </div>
-
         </div>
 
         <div className="stats-grid">
-
           <div className="stat-card">
             <span>📋</span>
 
             <div>
-              <small>Total Cases</small>
+              <small>کل کیسز</small>
               <h3>{cases.length}</h3>
             </div>
           </div>
@@ -1536,7 +1414,7 @@ function Dashboard({
             <span>⏳</span>
 
             <div>
-              <small>Pending</small>
+              <small>زیرِ التوا</small>
               <h3>{pendingCases}</h3>
             </div>
           </div>
@@ -1545,64 +1423,39 @@ function Dashboard({
             <span>✅</span>
 
             <div>
-              <small>Verified</small>
+              <small>تصدیق شدہ</small>
               <h3>{verifiedCases}</h3>
             </div>
           </div>
-
         </div>
 
         <div className="quick-feature-grid">
-
           <div className="info-feature-card">
-
             <div className="info-feature-icon">
               🌦️
             </div>
 
             <div>
-              <h3>Weather & Spray Alert</h3>
+              <h3>موسم اور اسپرے الرٹ</h3>
 
               <p>
-                Real local weather conditions and spray
-                recommendations.
+                مقامی موسم اور اسپرے سے متعلق رہنمائی۔
               </p>
             </div>
-
           </div>
 
           <div className="info-feature-card">
-
             <div className="info-feature-icon">
               📍
             </div>
 
             <div>
-              <h3>Location Advisory</h3>
+              <h3>لوکیشن رہنمائی</h3>
 
               <p>
-                Use your location to get area-specific
-                weather information.
+                اپنے علاقے کے موسم کی معلومات حاصل کریں۔
               </p>
             </div>
-
-          </div>
-
-          <div className="info-feature-card">
-
-            <div className="info-feature-icon">
-              🎙️
-            </div>
-
-            <div>
-              <h3>Voice Assistant</h3>
-
-              <p>
-                Ask farming questions using Urdu, Pashto
-                or English voice.
-              </p>
-            </div>
-
           </div>
 
         </div>
@@ -1617,33 +1470,27 @@ function Dashboard({
         />
 
         <section className="upload-section">
-
           <div className="section-header">
-
             <div>
-
               <p className="small-label">
-                AI ANALYSIS
+                AI تجزیہ
               </p>
 
               <h2>
-                🌾 Check Your Wheat Crop
+                🌾 اپنی گندم کی فصل چیک کریں
               </h2>
 
               <p>
-                Upload a clear picture of the affected wheat leaf.
+                متاثرہ گندم کے پتے کی صاف تصویر اپ لوڈ کریں۔
               </p>
-
             </div>
-
           </div>
 
           <div className="upload-box">
-
             {selectedImage ? (
               <img
                 src={selectedImage}
-                alt="Selected crop"
+                alt="منتخب فصل کی تصویر"
                 className="preview-image"
               />
             ) : (
@@ -1655,11 +1502,11 @@ function Dashboard({
             <h3>
               {selectedFile
                 ? selectedFile.name
-                : "Upload Wheat Crop Image"}
+                : "گندم کی فصل کی تصویر اپ لوڈ کریں"}
             </h3>
 
             <p>
-              JPG, PNG or JPEG image
+              JPG، PNG یا JPEG تصویر
             </p>
 
             <input
@@ -1677,7 +1524,7 @@ function Dashboard({
                 fileInputRef.current?.click()
               }
             >
-              📁 Choose Image
+              📁 تصویر منتخب کریں
             </button>
 
             {selectedFile && (
@@ -1688,11 +1535,10 @@ function Dashboard({
                 disabled={isAnalyzing}
               >
                 {isAnalyzing
-                  ? "🤖 AI Analyzing..."
-                  : "🤖 Analyze Wheat Crop"}
+                  ? "🤖 AI تجزیہ کر رہا ہے..."
+                  : "🤖 گندم کا تجزیہ کریں"}
               </button>
             )}
-
           </div>
 
           {error && (
@@ -1702,21 +1548,16 @@ function Dashboard({
           )}
 
           {showResult && currentResult && (
-
             <div className="result-card">
-
               <div className="result-header">
-
                 <div>
-
                   <span className="success-badge">
-                    ✓ AI Analysis Complete
+                    ✓ AI تجزیہ مکمل
                   </span>
 
                   <h2>
-                    🌾 {currentResult.crop || "Wheat"}
+                    🌾 {getCropNameUrdu(currentResult.crop)}
                   </h2>
-
                 </div>
 
                 <div className="confidence">
@@ -1725,16 +1566,14 @@ function Dashboard({
                   </strong>
 
                   <span>
-                    Confidence
+                    اعتماد کی شرح
                   </span>
                 </div>
-
               </div>
 
               <div className="disease-result">
-
                 <small>
-                  DETECTED DISEASE
+                  شناخت شدہ بیماری
                 </small>
 
                 <h3>
@@ -1744,82 +1583,73 @@ function Dashboard({
                 <p>
                   {advisory.symptoms}
                 </p>
-
               </div>
 
               <div className="advisory-grid">
-
                 <div className="advisory-card">
-
                   <div className="advisory-icon">
                     💊
                   </div>
 
                   <div>
-                    <small>TREATMENT</small>
+                    <small>علاج</small>
 
                     <h3>
-                      Recommended Treatment
+                      تجویز کردہ علاج
                     </h3>
 
                     <p>
                       {advisory.treatment}
                     </p>
                   </div>
-
                 </div>
 
                 <div className="advisory-card">
-
                   <div className="advisory-icon">
                     🧪
                   </div>
 
                   <div>
-                    <small>PESTICIDE</small>
+                    <small>کیڑے مار / فنگس کش دوا</small>
 
                     <h3>
-                      Pesticide Guidance
+                      دوا سے متعلق رہنمائی
                     </h3>
 
                     <p>
                       {advisory.pesticide}
                     </p>
                   </div>
-
                 </div>
 
                 <div className="advisory-card">
-
                   <div className="advisory-icon">
                     🛡️
                   </div>
 
                   <div>
-                    <small>PREVENTION</small>
+                    <small>بچاؤ</small>
 
                     <h3>
-                      Prevention Tips
+                      حفاظتی اقدامات
                     </h3>
 
                     <p>
                       {advisory.prevention}
                     </p>
                   </div>
-
                 </div>
 
                 <div className="advisory-card">
-
                   <div className="advisory-icon">
                     🌦️
                   </div>
 
                   <div>
-                    <small>WEATHER ALERT</small>
+                    <small>موسمی الرٹ</small>
 
                     <h3>
-                      Spray Condition
+                      اسپرے کی صورتحال
                     </h3>
 
                     <p>
@@ -1828,28 +1658,23 @@ function Dashboard({
                         : advisory.weather}
                     </p>
                   </div>
-
                 </div>
-
               </div>
 
               <div className="location-box">
-
                 <div>
-
-                  <small>📍 LOCATION</small>
+                  <small>📍 لوکیشن</small>
 
                   <strong>
                     {locationName ||
-                      "Local agricultural advisory"}
+                      "مقامی زرعی رہنمائی"}
                   </strong>
 
                   <p>
                     {weather
-                      ? "Weather information is being used for local spray-condition guidance."
-                      : "Use your location to load local weather and spray conditions."}
+                      ? "مقامی اسپرے کی صورتحال کے لیے موسم کی معلومات استعمال کی جا رہی ہیں۔"
+                      : "مقامی موسم اور اسپرے کی صورتحال دیکھنے کے لیے اپنی لوکیشن استعمال کریں۔"}
                   </p>
-
                 </div>
 
                 <button
@@ -1859,66 +1684,27 @@ function Dashboard({
                   disabled={locationLoading}
                 >
                   {locationLoading
-                    ? "📍 Detecting..."
-                    : "📍 Use My Location"}
+                    ? "📍 لوکیشن معلوم ہو رہی ہے..."
+                    : "📍 میری لوکیشن استعمال کریں"}
                 </button>
-
               </div>
 
-              <div className="voice-controls">
-
-                <select
-                  value={voiceLanguage}
-                  onChange={(e) =>
-                    setVoiceLanguage(e.target.value)
-                  }
-                >
-
-                  <option value="ur-PK">
-                    اردو Voice
-                  </option>
-
-                  <option value="ps-PK">
-                    پښتو Voice
-                  </option>
-
-                  <option value="en-US">
-                    English Voice
-                  </option>
-
-                </select>
-
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() =>
-                    speakAdvice(voiceText)
-                  }
-                >
-                  🔊 Listen to AI Result
-                </button>
-
-              </div>
 
               {latestCase && (
-
                 <div className="share-case-box">
-
                   <div>
-
                     <small>
-                      AGRICULTURE OFFICER
+                      زرعی افسر
                     </small>
 
                     <h3>
-                      Want expert verification?
+                      کیا آپ ماہر سے تصدیق چاہتے ہیں؟
                     </h3>
 
                     <p>
-                      Share this AI case with an Agriculture
-                      Officer for professional review.
+                      اس AI کیس کو زرعی افسر کے ساتھ شیئر کریں
+                      تاکہ وہ پیشہ ورانہ جائزہ لے سکے۔
                     </p>
-
                   </div>
 
                   <button
@@ -1928,106 +1714,167 @@ function Dashboard({
                       shareCase(latestCase._id)
                     }
                   >
-                    👨‍🌾 Share With Officer
+                    👨‍🌾 افسر کے ساتھ شیئر کریں
                   </button>
-
                 </div>
-
               )}
-
             </div>
-
           )}
-
         </section>
 
-        <VoiceAssistant
-          voiceLanguage={voiceLanguage}
-          setVoiceLanguage={setVoiceLanguage}
-          startVoiceInput={startVoiceInput}
-          stopVoiceInput={stopVoiceInput}
-          isListening={isListening}
-          voiceTranscript={voiceTranscript}
-          voiceAnswer={voiceAnswer}
-          speakAdvice={speakAdvice}
-        />
+
+        <section className="voice-assistant-section">
+          <style>{`
+            .ka-ai-chat-card { margin-top: 18px; border: 1px solid rgba(15, 118, 110, 0.14); border-radius: 22px; padding: 22px; background: linear-gradient(135deg, #ffffff 0%, #f6fbf8 100%); box-shadow: 0 14px 40px rgba(15, 23, 42, 0.08); }
+            .ka-ai-chat-head { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+            .ka-ai-chat-icon { width: 48px; height: 48px; border-radius: 15px; display: grid; place-items: center; background: #0f8a45; color: #fff; font-size: 24px; flex: 0 0 48px; }
+            .ka-ai-chat-head h3 { margin: 0; font-size: 1.15rem; }
+            .ka-ai-chat-head p { margin: 4px 0 0; color: #64748b; font-size: 0.92rem; line-height: 1.7; }
+            .ka-chat-input-row { display: flex; gap: 10px; align-items: stretch; }
+            .ka-chat-input-row textarea { flex: 1; min-height: 88px; resize: vertical; border: 1px solid #d7e2dc; border-radius: 14px; padding: 13px 14px; font: inherit; outline: none; background: #fff; direction: rtl; text-align: right; }
+            .ka-chat-input-row textarea:focus { border-color: #0f8a45; box-shadow: 0 0 0 3px rgba(15, 138, 69, 0.10); }
+            .ka-chat-actions { display: flex; flex-direction: column; gap: 10px; min-width: 150px; }
+            .ka-chat-send-btn { min-height: 44px; border-radius: 12px; border: 1px solid #0f8a45; background: #0f8a45; color: #fff; cursor: pointer; padding: 10px 13px; font-weight: 700; }
+            .ka-chat-send-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+            .ka-quick-questions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+            .ka-quick-questions button { border: 1px solid #d9e8df; background: #f8fcfa; color: #245c40; border-radius: 999px; padding: 8px 11px; cursor: pointer; font-size: 0.84rem; direction: rtl; }
+            .ka-chat-message { margin-top: 14px; border-radius: 15px; padding: 14px; direction: rtl; text-align: right; }
+            .ka-chat-user { background: #eef7f1; border: 1px solid #dbeee1; }
+            .ka-chat-ai { background: #fff; border: 1px solid #e3e9e5; }
+            .ka-chat-message small { display: block; font-weight: 700; color: #64748b; margin-bottom: 5px; }
+            .ka-chat-message p { margin: 0; line-height: 1.9; }
+            @media (max-width: 700px) { .ka-ai-chat-card { padding: 16px; border-radius: 18px; } .ka-chat-input-row { flex-direction: column; } .ka-chat-actions { min-width: 0; } .ka-quick-questions button { width: 100%; text-align: right; } }
+          `}</style>
+
+          <div className="section-header">
+            <div>
+              <p className="small-label">اردو ٹیکسٹ اسسٹنٹ</p>
+              <h2>💬 کسان ایڈوائزر سے سوال کریں</h2>
+              <p>بیماری، علامات، علاج، دوا، بچاؤ، موسم یا زرعی افسر کی رہنمائی کے بارے میں ٹیکسٹ میں سوال پوچھیں۔</p>
+            </div>
+          </div>
+
+          <div className="ka-ai-chat-card">
+            <div className="ka-ai-chat-head">
+              <div className="ka-ai-chat-icon">🤖</div>
+              <div>
+                <h3>اردو زرعی سوال و جواب</h3>
+                <p>اپنا سوال نیچے لکھیں اور کسان ایڈوائزر سے ٹیکسٹ میں جواب حاصل کریں۔</p>
+              </div>
+            </div>
+
+            <div className="ka-chat-input-row">
+              <textarea value={chatMessage} onChange={(e) => setChatMessage(e.target.value)} placeholder="مثلاً: میری گندم کی فصل میں کون سی بیماری ہے؟" rows="3" dir="rtl" />
+              <div className="ka-chat-actions">
+                <button type="button" className="ka-chat-send-btn" onClick={handleTextChat} disabled={!chatMessage.trim()}>💬 جواب حاصل کریں</button>
+              </div>
+            </div>
+
+            <div className="ka-quick-questions">
+              {[
+                "میری فصل میں کون سی بیماری ہے؟",
+                "اس بیماری کا علاج کیا ہے؟",
+                "کون سی دوا یا اسپرے استعمال کرنا چاہیے؟",
+                "اس بیماری سے فصل کو کیسے بچاؤں؟",
+                "کیا آج اسپرے کرنا مناسب ہے؟",
+                "زرعی افسر نے کیا رہنمائی دی ہے؟",
+              ].map((question) => (
+                <button key={question} type="button" onClick={() => setChatMessage(question)}>{question}</button>
+              ))}
+            </div>
+
+            {chatMessages.map((message, index) => (
+              <div key={`${message.type}-${index}`} className={`ka-chat-message ${message.type === "user" ? "ka-chat-user" : "ka-chat-ai"}`}>
+                <small>{message.type === "user" ? "آپ کا سوال" : "کسان ایڈوائزر کا جواب"}</small>
+                <p>{message.text}</p>
+              </div>
+            ))}
+          </div>
+        </section>
 
         {latestCase?.advice && (
-
           <section className="officer-response-section">
-
             <div className="section-header">
-
               <div>
-
                 <p className="small-label">
-                  EXPERT RESPONSE
+                  ماہر کا جواب
                 </p>
 
                 <h2>
-                  👨‍🌾 Agriculture Officer Advice
+                  👨‍🌾 زرعی افسر کی رہنمائی
                 </h2>
 
                 <p>
-                  Professional guidance received for your case.
+                  آپ کے کیس کے لیے پیشہ ورانہ رہنمائی موصول ہوئی ہے۔
                 </p>
-
               </div>
-
             </div>
 
             <div className="officer-response-card">
-
               <div className="response-icon">
                 ✅
               </div>
 
               <div>
-
                 <h3>
-                  Verified Agricultural Advice
+                  تصدیق شدہ زرعی رہنمائی
                 </h3>
 
-                <p>
-                  {latestCase.advice}
-                </p>
+                {latestAdvice.text && (
+                  <p>
+                    {latestAdvice.text}
+                  </p>
+                )}
 
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() =>
-                    speakAdvice(latestCase.advice)
-                  }
-                >
-                  🔊 Listen to Officer Advice
-                </button>
+                {latestAdvice.voiceNote && (
+                  <div className="voice-message-box">
+                    <small>
+                      🎙️ افسر کی وائس رہنمائی
+                    </small>
 
+                    <audio
+                      controls
+                      src={latestAdvice.voiceNote}
+                      style={{
+                        width: "100%",
+                        marginTop: "10px",
+                      }}
+                    >
+                      آپ کا براؤزر آڈیو چلانے کو سپورٹ نہیں کرتا۔
+                    </audio>
+                  </div>
+                )}
+
+                {latestAdvice.text && (
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() =>
+                      speakAdvice(latestAdvice.text)
+                    }
+                  >
+                    🔊 افسر کی رہنمائی سنیں
+                  </button>
+                )}
               </div>
-
             </div>
-
           </section>
-
         )}
 
         <section className="cases-section">
-
           <div className="section-header">
-
             <div>
-
               <p className="small-label">
-                HISTORY
+                سابقہ ریکارڈ
               </p>
 
               <h2>
-                📋 My Case History
+                📋 میرے کیسز
               </h2>
 
               <p>
-                Your previous crop disease cases.
+                آپ کے پچھلے فصلوں کے بیماری کے کیسز۔
               </p>
-
             </div>
 
             <button
@@ -2035,54 +1882,40 @@ function Dashboard({
               className="secondary-btn"
               onClick={loadFarmerCases}
             >
-              🔄 Refresh
+              🔄 تازہ کریں
             </button>
-
           </div>
 
           {cases.length === 0 ? (
-
             <div className="empty-state">
-
               <div>🌱</div>
 
               <h3>
-                No cases yet
+                ابھی کوئی کیس موجود نہیں
               </h3>
 
               <p>
-                Upload your first wheat crop image to create
-                a disease case.
+                بیماری کا کیس بنانے کے لیے اپنی گندم کی پہلی تصویر اپ لوڈ کریں۔
               </p>
-
             </div>
-
           ) : (
-
             <div className="table-wrapper">
-
               <table>
-
                 <thead>
-
                   <tr>
-                    <th>Case ID</th>
-                    <th>Crop</th>
-                    <th>Disease</th>
-                    <th>Confidence</th>
-                    <th>Status</th>
-                    <th>Date</th>
-                    <th>Action</th>
+                    <th>کیس آئی ڈی</th>
+                    <th>فصل</th>
+                    <th>بیماری</th>
+                    <th>اعتماد</th>
+                    <th>حیثیت</th>
+                    <th>تاریخ</th>
+                    <th>عمل</th>
                   </tr>
-
                 </thead>
 
                 <tbody>
-
                   {cases.map((item) => (
-
                     <tr key={item._id}>
-
                       <td>
                         <strong>
                           {item.caseId}
@@ -2090,11 +1923,11 @@ function Dashboard({
                       </td>
 
                       <td>
-                        {item.crop}
+                        {getCropNameUrdu(item.crop)}
                       </td>
 
                       <td>
-                        {formatDiseaseName(item.disease)}
+                        {getDiseaseNameUrdu(item.disease)}
                       </td>
 
                       <td>
@@ -2102,7 +1935,6 @@ function Dashboard({
                       </td>
 
                       <td>
-
                         <span
                           className={`status ${
                             item.status === "Verified"
@@ -2110,9 +1942,8 @@ function Dashboard({
                               : "pending"
                           }`}
                         >
-                          {item.status}
+                          {getStatusUrdu(item.status)}
                         </span>
-
                       </td>
 
                       <td>
@@ -2120,7 +1951,6 @@ function Dashboard({
                       </td>
 
                       <td>
-
                         <button
                           type="button"
                           className="table-action-btn"
@@ -2128,41 +1958,28 @@ function Dashboard({
                             setSelectedHistoryCase(item)
                           }
                         >
-                          View
+                          دیکھیں
                         </button>
-
                       </td>
-
                     </tr>
-
                   ))}
-
                 </tbody>
-
               </table>
-
             </div>
-
           )}
-
         </section>
 
         {selectedHistoryCase && (
-
           <section className="case-detail-card">
-
             <div className="section-header">
-
               <div>
-
                 <p className="small-label">
-                  CASE DETAILS
+                  کیس کی تفصیلات
                 </p>
 
                 <h2>
                   📄 {selectedHistoryCase.caseId}
                 </h2>
-
               </div>
 
               <button
@@ -2172,43 +1989,41 @@ function Dashboard({
                   setSelectedHistoryCase(null)
                 }
               >
-                ✕ Close
+                ✕ بند کریں
               </button>
-
             </div>
 
             {selectedHistoryCase.image && (
-
               <img
                 src={selectedHistoryCase.image}
-                alt="Case crop"
+                alt="کیس کی فصل"
                 className="case-detail-image"
               />
-
             )}
 
             <div className="detail-grid">
-
               <div>
-                <small>Crop</small>
+                <small>فصل</small>
 
                 <strong>
-                  {selectedHistoryCase.crop}
+                  {getCropNameUrdu(
+                    selectedHistoryCase.crop
+                  )}
                 </strong>
               </div>
 
               <div>
-                <small>Disease</small>
+                <small>بیماری</small>
 
                 <strong>
-                  {formatDiseaseName(
+                  {getDiseaseNameUrdu(
                     selectedHistoryCase.disease
                   )}
                 </strong>
               </div>
 
               <div>
-                <small>Confidence</small>
+                <small>اعتماد</small>
 
                 <strong>
                   {selectedHistoryCase.confidence}%
@@ -2216,49 +2031,73 @@ function Dashboard({
               </div>
 
               <div>
-                <small>Status</small>
+                <small>حیثیت</small>
 
                 <strong>
-                  {selectedHistoryCase.status}
+                  {getStatusUrdu(
+                    selectedHistoryCase.status
+                  )}
                 </strong>
               </div>
-
             </div>
 
             {selectedHistoryCase.advice && (
-
               <div className="advice-box">
-
                 <strong>
-                  👨‍🌾 Agriculture Officer Advice
+                  👨‍🌾 زرعی افسر کی رہنمائی
                 </strong>
 
-                <p>
-                  {selectedHistoryCase.advice}
-                </p>
+                {parseAdvice(
+                  selectedHistoryCase.advice
+                ).text && (
+                  <p>
+                    {
+                      parseAdvice(
+                        selectedHistoryCase.advice
+                      ).text
+                    }
+                  </p>
+                )}
 
-                <button
-                  type="button"
-                  className="secondary-btn"
-                  onClick={() =>
-                    speakAdvice(
-                      selectedHistoryCase.advice
-                    )
-                  }
-                >
-                  🔊 Read Advice
-                </button>
+                {parseAdvice(
+                  selectedHistoryCase.advice
+                ).voiceNote && (
+                  <audio
+                    controls
+                    src={
+                      parseAdvice(
+                        selectedHistoryCase.advice
+                      ).voiceNote
+                    }
+                    style={{
+                      width: "100%",
+                      marginTop: "10px",
+                    }}
+                  />
+                )}
 
+                {parseAdvice(
+                  selectedHistoryCase.advice
+                ).text && (
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={() =>
+                      speakAdvice(
+                        parseAdvice(
+                          selectedHistoryCase.advice
+                        ).text
+                      )
+                    }
+                  >
+                    🔊 رہنمائی سنیں
+                  </button>
+                )}
               </div>
-
             )}
-
           </section>
-
         )}
-
       </main>
-
     </div>
   );
 }
@@ -2273,6 +2112,10 @@ function OfficerDashboard({
   setSelectedCase,
   advice,
   setAdvice,
+  pesticideRecommendation,
+  setPesticideRecommendation,
+  otherProductRecommendation,
+  setOtherProductRecommendation,
   loadOfficerCases,
   verifyCase,
   sendAdvice,
@@ -2281,6 +2124,12 @@ function OfficerDashboard({
   correctDiagnosis,
   setCorrectDiagnosis,
   logout,
+  startOfficerRecording,
+  stopOfficerRecording,
+  isOfficerRecording,
+  officerVoiceNote,
+  officerVoicePreview,
+  clearOfficerVoiceNote,
 }) {
   const [filter, setFilter] = useState("All");
 
@@ -2299,53 +2148,43 @@ function OfficerDashboard({
 
   return (
     <div className="dashboard-page">
-
       <nav className="dashboard-nav">
-
         <div className="logo">
           <span className="logo-icon">🌱</span>
           Kissan Advisor
         </div>
 
         <div className="user-area">
-
           <button
             type="button"
             onClick={() => setPage("home")}
           >
-            ← Home
+            ← ہوم
           </button>
 
           <button
             type="button"
             onClick={logout}
           >
-            Logout
+            لاگ آؤٹ
           </button>
-
         </div>
-
       </nav>
 
       <main className="dashboard-container">
-
         <div className="dashboard-heading">
-
           <div>
-
             <p className="small-label">
-              AGRICULTURE OFFICER PANEL
+              زرعی افسر پینل
             </p>
 
             <h1>
-              Disease Case Management 👨‍🌾
+              بیماری کے کیسز کا انتظام 👨‍🌾
             </h1>
 
             <p>
-              Review AI results and provide expert
-              agricultural advice.
+              AI نتائج کا جائزہ لیں اور کسان کو ماہرانہ زرعی رہنمائی دیں۔
             </p>
-
           </div>
 
           <button
@@ -2353,78 +2192,63 @@ function OfficerDashboard({
             className="secondary-btn"
             onClick={loadOfficerCases}
           >
-            🔄 Refresh Cases
+            🔄 کیسز تازہ کریں
           </button>
-
         </div>
 
         <div className="stats-grid">
-
           <div className="stat-card">
-
             <span>📋</span>
 
             <div>
-              <small>Total Cases</small>
+              <small>کل کیسز</small>
               <h3>{cases.length}</h3>
             </div>
-
           </div>
 
           <div className="stat-card">
-
             <span>⏳</span>
 
             <div>
-              <small>Pending Review</small>
+              <small>جائزے کے منتظر</small>
 
               <h3>
                 {pendingCases.length}
               </h3>
             </div>
-
           </div>
 
           <div className="stat-card">
-
             <span>✅</span>
 
             <div>
-              <small>Verified Cases</small>
+              <small>تصدیق شدہ کیسز</small>
 
               <h3>
                 {verifiedCases.length}
               </h3>
             </div>
-
           </div>
-
         </div>
 
         <section className="cases-section">
-
           <div className="section-header">
-
             <div>
-
               <p className="small-label">
-                CASE MANAGEMENT
+                کیس مینجمنٹ
               </p>
 
               <h2>
-                📋 Farmer Cases
+                📋 کسانوں کے کیسز
               </h2>
 
               <p>
-                Select a case to review.
+                جائزہ لینے کے لیے ایک کیس منتخب کریں۔
               </p>
-
             </div>
-
           </div>
 
           <div className="case-filters">
-
             <button
               type="button"
               className={
@@ -2434,7 +2258,7 @@ function OfficerDashboard({
               }
               onClick={() => setFilter("All")}
             >
-              All ({cases.length})
+              تمام ({cases.length})
             </button>
 
             <button
@@ -2446,7 +2270,7 @@ function OfficerDashboard({
               }
               onClick={() => setFilter("Pending")}
             >
-              Pending ({pendingCases.length})
+              زیرِ التوا ({pendingCases.length})
             </button>
 
             <button
@@ -2458,35 +2282,26 @@ function OfficerDashboard({
               }
               onClick={() => setFilter("Verified")}
             >
-              Verified ({verifiedCases.length})
+              تصدیق شدہ ({verifiedCases.length})
             </button>
-
           </div>
 
           {filteredCases.length === 0 ? (
-
             <div className="empty-state">
-
               <div>📭</div>
 
               <h3>
-                No cases available
+                کوئی کیس دستیاب نہیں
               </h3>
 
               <p>
-                Farmer cases will appear here.
+                کسانوں کے کیسز یہاں ظاہر ہوں گے۔
               </p>
-
             </div>
-
           ) : (
-
             <div className="officer-layout">
-
               <div className="case-list">
-
                 {filteredCases.map((item) => (
-
                   <div
                     key={item._id}
                     className={`case-item ${
@@ -2498,9 +2313,7 @@ function OfficerDashboard({
                       setSelectedCase(item)
                     }
                   >
-
                     <div>
-
                       <strong>
                         {item.caseId}
                       </strong>
@@ -2510,10 +2323,9 @@ function OfficerDashboard({
                       </p>
 
                       <small>
-                        {item.crop} •{" "}
-                        {formatDiseaseName(item.disease)}
+                        {getCropNameUrdu(item.crop)} •{" "}
+                        {getDiseaseNameUrdu(item.disease)}
                       </small>
-
                     </div>
 
                     <span
@@ -2523,50 +2335,36 @@ function OfficerDashboard({
                           : "pending"
                       }`}
                     >
-                      {item.status}
+                      {getStatusUrdu(item.status)}
                     </span>
-
                   </div>
-
                 ))}
-
               </div>
 
               <div className="review-panel">
-
                 {!selectedCase ? (
-
                   <div className="empty-state">
-
                     <div>👈</div>
 
                     <h3>
-                      Select a case
+                      کیس منتخب کریں
                     </h3>
 
                     <p>
-                      Choose a farmer case from the list
-                      to review it.
+                      جائزہ لینے کے لیے فہرست سے کسان کا کیس منتخب کریں۔
                     </p>
-
                   </div>
-
                 ) : (
-
                   <>
-
                     <div className="review-header">
-
                       <div>
-
                         <small>
-                          Case ID
+                          کیس آئی ڈی
                         </small>
 
                         <h2>
                           {selectedCase.caseId}
                         </h2>
-
                       </div>
 
                       <span
@@ -2576,25 +2374,23 @@ function OfficerDashboard({
                             : "pending"
                         }`}
                       >
-                        {selectedCase.status}
+                        {getStatusUrdu(
+                          selectedCase.status
+                        )}
                       </span>
-
                     </div>
 
                     {selectedCase.image && (
-
                       <img
                         src={selectedCase.image}
-                        alt="Crop"
+                        alt="فصل کی تصویر"
                         className="case-image"
                       />
-
                     )}
 
                     <div className="review-info">
-
                       <div>
-                        <small>Farmer</small>
+                        <small>کسان</small>
 
                         <strong>
                           {selectedCase.farmerName}
@@ -2602,74 +2398,67 @@ function OfficerDashboard({
                       </div>
 
                       <div>
-                        <small>Crop</small>
+                        <small>فصل</small>
 
                         <strong>
-                          {selectedCase.crop}
+                          {getCropNameUrdu(
+                            selectedCase.crop
+                          )}
                         </strong>
                       </div>
 
                       <div>
-                        <small>AI Disease</small>
+                        <small>AI بیماری</small>
 
                         <strong>
-                          {formatDiseaseName(
+                          {getDiseaseNameUrdu(
                             selectedCase.disease
                           )}
                         </strong>
                       </div>
 
                       <div>
-                        <small>Confidence</small>
+                        <small>اعتماد</small>
 
                         <strong>
                           {selectedCase.confidence}%
                         </strong>
                       </div>
-
                     </div>
 
                     <div className="expert-review-box">
-
                       <div className="expert-review-title">
-
                         <span>🤖</span>
 
                         <div>
-
                           <small>
-                            AI DIAGNOSIS
+                            AI تشخیص
                           </small>
 
                           <h3>
-                            {formatDiseaseName(
+                            {getDiseaseNameUrdu(
                               selectedCase.disease
                             )}
                           </h3>
-
                         </div>
-
                       </div>
 
                       <p>
-                        Review the AI result before providing
-                        final agricultural guidance.
+                        حتمی زرعی رہنمائی دینے سے پہلے AI نتیجے کا جائزہ لیں۔
                       </p>
-
                     </div>
 
                     <div className="review-form">
-
                       <label>
-                        Expert / Corrected Diagnosis
+                        ماہر کی درست / تصحیح شدہ تشخیص
                       </label>
 
                       <input
                         type="text"
-                        placeholder="e.g. Yellow Rust"
+                        placeholder="مثلاً یلو رسٹ"
                         value={
                           correctDiagnosis ||
-                          formatDiseaseName(
+                          getDiseaseNameUrdu(
                             selectedCase.disease
                           ) ||
                           ""
@@ -2680,13 +2469,10 @@ function OfficerDashboard({
                           )
                         }
                       />
-
                     </div>
 
                     <div className="review-actions">
-
                       {selectedCase.status === "Pending" && (
-
                         <button
                           type="button"
                           className="primary-btn"
@@ -2694,13 +2480,12 @@ function OfficerDashboard({
                             verifyCase(selectedCase._id)
                           }
                         >
-                          ✅ Verify Case
+                          ✅ کیس کی تصدیق کریں
                         </button>
-
                       )}
 
                       <textarea
-                        placeholder="Write treatment/advisory for the farmer..."
+                        placeholder="کسان کے لیے علاج یا عمومی زرعی رہنمائی لکھیں..."
                         value={advice}
                         onChange={(e) =>
                           setAdvice(e.target.value)
@@ -2708,58 +2493,179 @@ function OfficerDashboard({
                         rows="5"
                       />
 
+                      <div className="review-form">
+                        <label>
+                          🧪 تجویز کردہ کیڑے مار / فنگس کش دوا
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="مثلاً: گندم کے لیے مقامی طور پر رجسٹرڈ فنگس کش دوا"
+                          value={pesticideRecommendation}
+                          onChange={(e) =>
+                            setPesticideRecommendation(e.target.value)
+                          }
+                        />
+                        <small className="input-help">
+                          صرف رجسٹرڈ اور فصل کے لیے منظور شدہ دوا کی سفارش کریں۔
+                        </small>
+                      </div>
+
+                      <div className="review-form">
+                        <label>
+                          📦 دیگر زرعی مصنوعات / سامان
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="مثلاً: منظور شدہ بیج، کھاد یا دوسری زرعی مصنوعات"
+                          value={otherProductRecommendation}
+                          onChange={(e) =>
+                            setOtherProductRecommendation(e.target.value)
+                          }
+                        />
+                        <small className="input-help">
+                          کسان کے لیے مفید اور منظور شدہ دوسری زرعی مصنوعات یا سامان درج کریں۔
+                        </small>
+                      </div>
+
+                      {/* =================================================
+                         OFFICER VOICE ADVICE
+                      ================================================= */}
+
+                      <div className="voice-message-box">
+                        <small>
+                          🎙️ کسان کو وائس رہنمائی
+                        </small>
+
+                        <p>
+                          آپ اپنی اردو میں رہنمائی ریکارڈ کرکے کسان کو بھیج سکتے ہیں۔
+                        </p>
+
+                        {!isOfficerRecording ? (
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            onClick={
+                              startOfficerRecording
+                            }
+                          >
+                            🎙️ اردو وائس ریکارڈ کریں
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            onClick={
+                              stopOfficerRecording
+                            }
+                          >
+                            ⏹️ ریکارڈنگ بند کریں
+                          </button>
+                        )}
+
+                        {isOfficerRecording && (
+                          <p>
+                            🔴 ریکارڈنگ جاری ہے... اردو میں رہنمائی بولیں۔
+                          </p>
+                        )}
+
+                        {officerVoicePreview && (
+                          <div>
+                            <small>
+                              ریکارڈ شدہ وائس:
+                            </small>
+
+                            <audio
+                              controls
+                              src={officerVoicePreview}
+                              style={{
+                                width: "100%",
+                                marginTop: "10px",
+                              }}
+                            />
+
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              onClick={
+                                clearOfficerVoiceNote
+                              }
+                            >
+                              ✕ وائس ہٹائیں
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
                       <button
                         type="button"
                         className="primary-btn"
                         onClick={sendAdvice}
                       >
-                        💬 Send Advice to Farmer
+                        💬 کسان کو رہنمائی بھیجیں
                       </button>
 
                       {selectedCase.advice && (
-
                         <div className="advice-box">
-
                           <strong>
-                            Officer Advice:
+                            افسر کی رہنمائی:
                           </strong>
 
-                          <p>
-                            {selectedCase.advice}
-                          </p>
+                          {parseAdvice(
+                            selectedCase.advice
+                          ).text && (
+                            <p>
+                              {
+                                parseAdvice(
+                                  selectedCase.advice
+                                ).text
+                              }
+                            </p>
+                          )}
 
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            onClick={() =>
-                              speakAdvice(
-                                selectedCase.advice
-                              )
-                            }
-                          >
-                            🔊 Read Advice
-                          </button>
+                          {parseAdvice(
+                            selectedCase.advice
+                          ).voiceNote && (
+                            <audio
+                              controls
+                              src={
+                                parseAdvice(
+                                  selectedCase.advice
+                                ).voiceNote
+                              }
+                              style={{
+                                width: "100%",
+                                marginTop: "10px",
+                              }}
+                            />
+                          )}
 
+                          {parseAdvice(
+                            selectedCase.advice
+                          ).text && (
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              onClick={() =>
+                                speakAdvice(
+                                  parseAdvice(
+                                    selectedCase.advice
+                                  ).text
+                                )
+                              }
+                            >
+                              🔊 رہنمائی سنیں
+                            </button>
+                          )}
                         </div>
-
                       )}
-
                     </div>
-
                   </>
-
                 )}
-
               </div>
-
             </div>
-
           )}
-
         </section>
-
       </main>
-
     </div>
   );
 }
@@ -2795,289 +2701,235 @@ function AdminDashboard({
 
   return (
     <div className="dashboard-page">
-
       <nav className="dashboard-nav">
-
         <div className="logo">
           <span className="logo-icon">🌱</span>
           Kissan Advisor
         </div>
 
         <div className="user-area">
-
           <button
             type="button"
             onClick={() => setPage("home")}
           >
-            ← Home
+            ← ہوم
           </button>
 
           <button
             type="button"
             onClick={logout}
           >
-            Logout
+            لاگ آؤٹ
           </button>
-
         </div>
-
       </nav>
 
       <main className="dashboard-container">
-
         <div className="dashboard-heading">
-
           <div>
-
             <p className="small-label">
-              ADMIN PANEL
+              ایڈمن پینل
             </p>
 
             <h1>
-              System Management ⚙️
+              سسٹم مینجمنٹ ⚙️
             </h1>
 
             <p>
-              Monitor farmers, disease cases and agricultural
-              advisory data.
+              کسانوں، بیماری کے کیسز اور زرعی رہنمائی کے ڈیٹا کی نگرانی کریں۔
             </p>
-
           </div>
-
         </div>
 
         <div className="stats-grid">
-
           <div className="stat-card">
-
             <span>👨‍🌾</span>
 
             <div>
-              <small>Farm Cases</small>
+              <small>کل فصل کیسز</small>
               <h3>{cases.length}</h3>
             </div>
-
           </div>
 
           <div className="stat-card">
-
             <span>⏳</span>
 
             <div>
-              <small>Pending Cases</small>
+              <small>زیرِ التوا کیسز</small>
               <h3>{pendingCases}</h3>
             </div>
-
           </div>
 
           <div className="stat-card">
-
             <span>✅</span>
 
             <div>
-              <small>Verified Cases</small>
+              <small>تصدیق شدہ کیسز</small>
               <h3>{verifiedCases}</h3>
             </div>
-
           </div>
-
         </div>
 
         <div className="admin-grid">
-
           <div className="admin-card">
-
             <div className="admin-card-icon">
               👨‍🌾
             </div>
 
             <h3>
-              Farmers
+              کسان
             </h3>
 
             <p>
-              Registered farmers can upload wheat crop disease
-              cases and receive agricultural guidance.
+              رجسٹرڈ کسان گندم کی بیماری کے کیسز اپ لوڈ کر سکتے ہیں
+              اور زرعی رہنمائی حاصل کر سکتے ہیں۔
             </p>
 
             <strong>
-              Farmer Management
+              کسان مینجمنٹ
             </strong>
-
           </div>
 
           <div className="admin-card">
-
             <div className="admin-card-icon">
               👨‍💼
             </div>
 
             <h3>
-              Agriculture Officers
+              زرعی افسران
             </h3>
 
             <p>
-              Officers review AI diagnoses and provide expert
-              verification and advice.
+              افسران AI تشخیص کا جائزہ لیتے اور ماہرانہ تصدیق و رہنمائی فراہم کرتے ہیں۔
             </p>
 
             <strong>
-              Officer Management
+              افسر مینجمنٹ
             </strong>
-
           </div>
 
           <div className="admin-card">
-
             <div className="admin-card-icon">
               🌾
             </div>
 
             <h3>
-              Crop Database
+              فصل کا ڈیٹا بیس
             </h3>
 
             <p>
-              The current AI model is trained specifically
-              for wheat disease detection.
+              موجودہ AI ماڈل گندم کی بیماریوں کی تشخیص کے لیے تربیت یافتہ ہے۔
             </p>
 
             <strong>
-              {cropCount} detected crop types
+              {cropCount} فصل کی اقسام
             </strong>
-
           </div>
 
           <div className="admin-card">
-
             <div className="admin-card-icon">
               🦠
             </div>
 
             <h3>
-              Disease Database
+              بیماری کا ڈیٹا بیس
             </h3>
 
             <p>
-              Current AI model supports Brown Rust, Yellow Rust,
-              Septoria, Mildew and Healthy wheat classes.
+              موجودہ AI ماڈل براؤن رسٹ، یلو رسٹ، سیپٹوریا، ملڈیو
+              اور صحت مند گندم کی کلاسز کو سپورٹ کرتا ہے۔
             </p>
 
             <strong>
-              {diseaseCount} detected diseases
+              {diseaseCount} بیماری کی اقسام
             </strong>
-
           </div>
 
           <div className="admin-card">
-
             <div className="admin-card-icon">
               🧪
             </div>
 
             <h3>
-              Treatment & Pesticides
+              علاج اور زرعی ادویات
             </h3>
 
             <p>
-              Manage treatment guidance and locally relevant
-              pesticide recommendations.
+              علاج کی رہنمائی اور مقامی طور پر متعلقہ زرعی ادویات کی سفارشات کا انتظام کریں۔
             </p>
 
             <strong>
-              Advisory Management
+              رہنمائی مینجمنٹ
             </strong>
-
           </div>
 
           <div className="admin-card">
-
             <div className="admin-card-icon">
               📊
             </div>
 
             <h3>
-              Case Monitoring
+              کیس مانیٹرنگ
             </h3>
 
             <p>
-              Monitor pending, verified and completed farmer
-              disease cases.
+              زیرِ التوا، تصدیق شدہ اور مکمل کسانوں کے بیماری کے کیسز کی نگرانی کریں۔
             </p>
 
             <strong>
-              System Monitoring
+              سسٹم مانیٹرنگ
             </strong>
-
           </div>
-
         </div>
 
         <section className="cases-section">
-
           <div className="section-header">
-
             <div>
-
               <p className="small-label">
-                RECENT CASES
+                حالیہ کیسز
               </p>
 
               <h2>
-                📋 Case Monitoring
+                📋 کیس مانیٹرنگ
               </h2>
 
               <p>
-                Latest disease cases in the system.
+                سسٹم میں موجود تازہ بیماری کے کیسز۔
               </p>
-
             </div>
-
           </div>
 
           {cases.length === 0 ? (
-
             <div className="empty-state">
-
               <div>📭</div>
 
               <h3>
-                No cases yet
+                ابھی کوئی کیس نہیں
               </h3>
 
               <p>
-                System cases will appear here.
+                سسٹم کے کیسز یہاں ظاہر ہوں گے۔
               </p>
-
             </div>
-
           ) : (
-
             <div className="table-wrapper">
-
               <table>
-
                 <thead>
-
                   <tr>
-                    <th>Case ID</th>
-                    <th>Farmer</th>
-                    <th>Crop</th>
-                    <th>Disease</th>
-                    <th>Status</th>
-                    <th>Date</th>
+                    <th>کیس آئی ڈی</th>
+                    <th>کسان</th>
+                    <th>فصل</th>
+                    <th>بیماری</th>
+                    <th>حیثیت</th>
+                    <th>تاریخ</th>
                   </tr>
-
                 </thead>
 
                 <tbody>
-
                   {cases
                     .slice(0, 10)
                     .map((item) => (
-
                       <tr key={item._id}>
-
                         <td>
                           <strong>
                             {item.caseId}
@@ -3085,19 +2937,18 @@ function AdminDashboard({
                         </td>
 
                         <td>
-                          {item.farmerName || "Farmer"}
+                          {item.farmerName || "کسان"}
                         </td>
 
                         <td>
-                          {item.crop}
+                          {getCropNameUrdu(item.crop)}
                         </td>
 
                         <td>
-                          {formatDiseaseName(item.disease)}
+                          {getDiseaseNameUrdu(item.disease)}
                         </td>
 
                         <td>
-
                           <span
                             className={`status ${
                               item.status === "Verified"
@@ -3105,31 +2956,21 @@ function AdminDashboard({
                                 : "pending"
                             }`}
                           >
-                            {item.status}
+                            {getStatusUrdu(item.status)}
                           </span>
-
                         </td>
 
                         <td>
                           {formatDate(item.createdAt)}
                         </td>
-
                       </tr>
-
                     ))}
-
                 </tbody>
-
               </table>
-
             </div>
-
           )}
-
         </section>
-
       </main>
-
     </div>
   );
 }
@@ -3139,7 +2980,6 @@ function AdminDashboard({
 ========================================================= */
 
 function App() {
-
   const [page, setPage] = useState(() => {
     try {
       const storedStaff = JSON.parse(
@@ -3161,9 +3001,8 @@ function App() {
       if (storedFarmer?.role === "farmer") {
         return "dashboard";
       }
-
     } catch {
-      // Ignore invalid localStorage
+      // Invalid localStorage data
     }
 
     return "home";
@@ -3263,6 +3102,12 @@ function App() {
   const [advice, setAdvice] =
     useState("");
 
+  const [pesticideRecommendation, setPesticideRecommendation] =
+    useState("");
+
+  const [otherProductRecommendation, setOtherProductRecommendation] =
+    useState("");
+
   const [correctDiagnosis, setCorrectDiagnosis] =
     useState("");
 
@@ -3275,9 +3120,6 @@ function App() {
 
   const [error, setError] =
     useState("");
-
-  const [voiceLanguage, setVoiceLanguage] =
-    useState("ur-PK");
 
   /* =======================================================
      WEATHER / LOCATION STATES
@@ -3298,35 +3140,37 @@ function App() {
   const [weatherError, setWeatherError] =
     useState("");
 
-  /* =======================================================
-     VOICE ASSISTANT STATES
-  ======================================================= */
-
-  const [isListening, setIsListening] =
-    useState(false);
-
-  const [voiceTranscript, setVoiceTranscript] =
-    useState("");
-
-  const [voiceAnswer, setVoiceAnswer] =
-    useState("");
-
-  const recognitionRef =
-    useRef(null);
-
   const fileInputRef =
     useRef(null);
 
-  /* =========================================================
+  /* =======================================================
+     OFFICER VOICE ADVICE STATES
+  ======================================================= */
+
+  const [isOfficerRecording, setIsOfficerRecording] =
+    useState(false);
+
+  const [officerVoiceNote, setOfficerVoiceNote] =
+    useState("");
+
+  const [officerVoicePreview, setOfficerVoicePreview] =
+    useState("");
+
+  const mediaRecorderRef =
+    useRef(null);
+
+  const mediaChunksRef =
+    useRef([]);
+
+  /* =======================================================
      API REQUEST
-  ========================================================= */
+  ======================================================= */
 
   const apiRequest = async (
     url,
     options = {},
     authToken = token
   ) => {
-
     const headers = {
       "Content-Type": "application/json",
       ...(options.headers || {}),
@@ -3356,25 +3200,23 @@ function App() {
     if (!response.ok) {
       throw new Error(
         data.message ||
-        "Something went wrong."
+        "کچھ غلط ہو گیا ہے۔"
       );
     }
 
     return data;
   };
 
-  /* =========================================================
+  /* =======================================================
      LOAD FARMER CASES
-  ========================================================= */
+  ======================================================= */
 
   const loadFarmerCases = async () => {
-
     if (!token) {
       return;
     }
 
     try {
-
       const data =
         await apiRequest("/cases/my");
 
@@ -3384,30 +3226,25 @@ function App() {
           : data.cases || [];
 
       setCases(caseList);
-
     } catch (err) {
-
       console.error(
         "Farmer cases error:",
         err
       );
-
     }
   };
 
-  /* =========================================================
+  /* =======================================================
      LOAD OFFICER / ADMIN CASES
-  ========================================================= */
+  ======================================================= */
 
   const loadOfficerCases = async () => {
-
     if (!staffToken) {
       setCases([]);
       return;
     }
 
     try {
-
       const data =
         await apiRequest(
           "/cases",
@@ -3421,9 +3258,7 @@ function App() {
           : data.cases || [];
 
       setCases(caseList);
-
     } catch (err) {
-
       console.error(
         "Officer/Admin cases error:",
         err
@@ -3433,12 +3268,11 @@ function App() {
     }
   };
 
-  /* =========================================================
+  /* =======================================================
      AUTO LOAD FARMER CASES
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
-
     if (
       farmer &&
       token &&
@@ -3446,15 +3280,13 @@ function App() {
     ) {
       loadFarmerCases();
     }
-
   }, [farmer, token]);
 
-  /* =========================================================
+  /* =======================================================
      AUTO LOAD STAFF CASES
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
-
     if (
       staffUser &&
       staffToken &&
@@ -3465,36 +3297,42 @@ function App() {
     ) {
       loadOfficerCases();
     }
-
   }, [staffUser, staffToken]);
 
-  /* =========================================================
+  /* =======================================================
      CLEANUP VOICE
-  ========================================================= */
+  ======================================================= */
 
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
+      if (mediaRecorderRef.current) {
         try {
-          recognitionRef.current.stop();
+          if (
+            mediaRecorderRef.current.state !==
+            "inactive"
+          ) {
+            mediaRecorderRef.current.stop();
+          }
         } catch {
-          // Ignore cleanup errors
+          // Ignore
         }
       }
 
-      if (window.speechSynthesis) {
+      if (
+        typeof window !== "undefined" &&
+        window.speechSynthesis
+      ) {
         window.speechSynthesis.cancel();
       }
     };
   }, []);
 
-  /* =========================================================
+  /* =======================================================
      STAFF LOGIN
-  ========================================================= */
+  ======================================================= */
 
   const handleStaffLogin =
     (newToken, user) => {
-
       if (!newToken || !user) {
         return;
       }
@@ -3524,13 +3362,12 @@ function App() {
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      FARMER AUTH
-  ========================================================= */
+  ======================================================= */
 
   const handleAuth =
     async (e) => {
-
       e.preventDefault();
 
       setLoading(true);
@@ -3551,9 +3388,8 @@ function App() {
         farmerMode === "register" &&
         cleanName.length < 2
       ) {
-
         setError(
-          "Please enter your full name."
+          "براہِ کرم اپنا پورا نام درج کریں۔"
         );
 
         setLoading(false);
@@ -3561,9 +3397,8 @@ function App() {
       }
 
       if (cleanPassword.length < 6) {
-
         setError(
-          "Password must be at least 6 characters."
+          "پاس ورڈ کم از کم 6 حروف کا ہونا چاہیے۔"
         );
 
         setLoading(false);
@@ -3571,7 +3406,6 @@ function App() {
       }
 
       try {
-
         const endpoint =
           farmerMode === "register"
             ? "/auth/register"
@@ -3619,27 +3453,21 @@ function App() {
 
         setError("");
         setPage("dashboard");
-
       } catch (err) {
-
         setError(
           err.message ||
-          "Unable to complete request."
+          "درخواست مکمل نہیں ہو سکی۔"
         );
-
       } finally {
-
         setLoading(false);
-
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      FARMER LOGOUT
-  ========================================================= */
+  ======================================================= */
 
   const logout = () => {
-
     localStorage.removeItem("ka_token");
     localStorage.removeItem("ka_user");
 
@@ -3658,18 +3486,14 @@ function App() {
 
     setWeather(null);
     setLocationName("");
-    setVoiceTranscript("");
-    setVoiceAnswer("");
-
     setPage("home");
   };
 
-  /* =========================================================
+  /* =======================================================
      STAFF LOGOUT
-  ========================================================= */
+  ======================================================= */
 
   const staffLogout = () => {
-
     localStorage.removeItem(
       "ka_staff_token"
     );
@@ -3684,20 +3508,24 @@ function App() {
     setCases([]);
     setSelectedCase(null);
     setAdvice("");
+    setPesticideRecommendation("");
+    setOtherProductRecommendation("");
     setCorrectDiagnosis("");
+
+    setOfficerVoiceNote("");
+    setOfficerVoicePreview("");
+    setIsOfficerRecording(false);
 
     setPage("home");
   };
 
-  /* =========================================================
+  /* =======================================================
      FILE TO BASE64
-  ========================================================= */
+  ======================================================= */
 
   const fileToBase64 = (file) => {
-
     return new Promise(
       (resolve, reject) => {
-
         const reader =
           new FileReader();
 
@@ -3714,13 +3542,12 @@ function App() {
     );
   };
 
-  /* =========================================================
+  /* =======================================================
      IMAGE CHANGE
-  ========================================================= */
+  ======================================================= */
 
   const handleImageChange =
     (e) => {
-
       const file =
         e.target.files?.[0];
 
@@ -3740,9 +3567,8 @@ function App() {
           file.type
         )
       ) {
-
         setError(
-          "Please select a JPG, PNG or WEBP image."
+          "براہِ کرم JPG، PNG یا WEBP تصویر منتخب کریں۔"
         );
 
         return;
@@ -3752,9 +3578,8 @@ function App() {
         file.size >
         5 * 1024 * 1024
       ) {
-
         setError(
-          "Image size must be less than 5MB."
+          "تصویر کا سائز 5MB سے کم ہونا چاہیے۔"
         );
 
         return;
@@ -3772,26 +3597,23 @@ function App() {
       setError("");
     };
 
-  /* =========================================================
+  /* =======================================================
      REAL AI ANALYSIS
-  ========================================================= */
+  ======================================================= */
 
   const handleAnalyze =
     async () => {
-
       if (!selectedFile) {
-
         setError(
-          "Please select a crop image first."
+          "براہِ کرم پہلے فصل کی تصویر منتخب کریں۔"
         );
 
         return;
       }
 
       if (!token) {
-
         setError(
-          "Please login as a farmer first."
+          "براہِ کرم پہلے کسان کے طور پر لاگ اِن کریں۔"
         );
 
         return;
@@ -3803,12 +3625,6 @@ function App() {
       setAnalysisResult(null);
 
       try {
-
-        /* =====================================================
-           STEP 1
-           SEND IMAGE TO PYTHON AI SERVICE
-        ===================================================== */
-
         const formDataAI =
           new FormData();
 
@@ -3836,11 +3652,10 @@ function App() {
         }
 
         if (!aiResponse.ok) {
-
           throw new Error(
             aiData.detail ||
             aiData.message ||
-            "AI service could not analyze the image."
+            "AI سروس تصویر کا تجزیہ نہیں کر سکی۔"
           );
         }
 
@@ -3848,9 +3663,8 @@ function App() {
           aiData.status !== "success" ||
           !aiData.disease
         ) {
-
           throw new Error(
-            "AI service returned an invalid result."
+            "AI سروس نے درست نتیجہ واپس نہیں کیا۔"
           );
         }
 
@@ -3858,11 +3672,6 @@ function App() {
           "REAL AI RESULT:",
           aiData
         );
-
-        /* =====================================================
-           STEP 2
-           SAVE AI CASE TO NODE/MONGODB
-        ===================================================== */
 
         const imageBase64 =
           await fileToBase64(
@@ -3874,7 +3683,6 @@ function App() {
             "/cases",
             {
               method: "POST",
-
               body: JSON.stringify({
                 crop:
                   aiData.crop ||
@@ -3891,11 +3699,6 @@ function App() {
               }),
             }
           );
-
-        /* =====================================================
-           STEP 3
-           SHOW REAL RESULT
-        ===================================================== */
 
         const realResult = {
           crop:
@@ -3918,28 +3721,17 @@ function App() {
 
         setShowResult(true);
 
-        /* =====================================================
-           STEP 4
-           UPDATE CASE HISTORY
-        ===================================================== */
-
         if (caseResponse?.case) {
-
           setCases(
             (previous) => [
               caseResponse.case,
               ...previous,
             ]
           );
-
         } else {
-
           await loadFarmerCases();
-
         }
-
       } catch (err) {
-
         console.error(
           "AI ANALYSIS ERROR:",
           err
@@ -3947,85 +3739,66 @@ function App() {
 
         let message =
           err.message ||
-          "Unable to analyze image.";
+          "تصویر کا تجزیہ نہیں ہو سکا۔";
 
         if (
           message.includes(
             "Failed to fetch"
           )
         ) {
-
           message =
-            "AI service is not reachable. Make sure the Python AI server is running on http://127.0.0.1:8000";
+            "AI سروس دستیاب نہیں ہے۔ یقینی بنائیں کہ Python AI server http://127.0.0.1:8000 پر چل رہا ہے۔";
         }
 
         setError(message);
-
       } finally {
-
         setIsAnalyzing(false);
-
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      SHARE CASE
-  ========================================================= */
+  ======================================================= */
 
   const shareCase =
     async (caseId) => {
-
       if (!caseId) {
-
         alert(
-          "Please create a case first."
+          "براہِ کرم پہلے کیس بنائیں۔"
         );
 
         return;
       }
 
       try {
-
-        /*
-          The officer dashboard already reads cases from
-          the backend. Therefore this action refreshes the
-          case and confirms that it is available for officer
-          review.
-        */
-
         await loadFarmerCases();
 
         alert(
-          "✅ Case is available for Agriculture Officer review."
+          "✅ کیس زرعی افسر کے جائزے کے لیے دستیاب ہے۔"
         );
-
       } catch (err) {
-
         alert(
           err.message ||
-          "Unable to share case."
+          "کیس شیئر نہیں ہو سکا۔"
         );
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      VERIFY CASE
-  ========================================================= */
+  ======================================================= */
 
   const verifyCase =
     async (caseId) => {
-
       if (!staffToken) {
-
         alert(
-          "Staff session expired. Please login again."
+          "افسر کا سیشن ختم ہو گیا ہے۔ براہِ کرم دوبارہ لاگ اِن کریں۔"
         );
 
         return;
       }
 
       try {
-
         const data =
           await apiRequest(
             `/cases/${caseId}/verify`,
@@ -4048,54 +3821,68 @@ function App() {
         setSelectedCase(
           data.case
         );
-
       } catch (err) {
-
         alert(
           err.message
         );
       }
     };
 
-  /* =========================================================
+  /* =======================================================
      SEND ADVICE
-  ========================================================= */
+  ======================================================= */
 
   const sendAdvice =
     async () => {
+      const combinedAdvice = [
+        advice.trim(),
+        pesticideRecommendation.trim()
+          ? `تجویز کردہ دوا: ${pesticideRecommendation.trim()}`
+          : "",
+        otherProductRecommendation.trim()
+          ? `دیگر تجویز کردہ زرعی مصنوعات: ${otherProductRecommendation.trim()}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n");
 
       if (
         !selectedCase ||
-        !advice.trim()
+        (
+          !combinedAdvice &&
+          !officerVoiceNote
+        )
       ) {
-
         alert(
-          "Please write advice first."
+          "براہِ کرم تحریری رہنمائی، دوا / مصنوعات کی سفارش یا وائس رہنمائی فراہم کریں۔"
         );
 
         return;
       }
 
       if (!staffToken) {
-
         alert(
-          "Staff session expired. Please login again."
+          "افسر کا سیشن ختم ہو گیا ہے۔ براہِ کرم دوبارہ لاگ اِن کریں۔"
         );
 
         return;
       }
 
       try {
+        const advicePayload =
+          createAdvicePayload(
+            combinedAdvice,
+            officerVoiceNote
+          );
 
         const data =
           await apiRequest(
             `/cases/${selectedCase._id}/advice`,
             {
               method: "PUT",
-
               body: JSON.stringify({
                 advice:
-                  advice.trim(),
+                  advicePayload,
               }),
             },
             staffToken
@@ -4117,72 +3904,123 @@ function App() {
         );
 
         setAdvice("");
+        setPesticideRecommendation("");
+        setOtherProductRecommendation("");
+        setOfficerVoiceNote("");
+        setOfficerVoicePreview("");
 
         alert(
-          "Advice sent successfully 🌱"
+          "رہنمائی کامیابی سے کسان کو بھیج دی گئی 🌱"
         );
-
       } catch (err) {
-
         alert(
           err.message
         );
       }
     };
 
-  /* =========================================================
-     TEXT TO SPEECH
-  ========================================================= */
+  /* =======================================================
+     TEXT TO SPEECH — URDU
+  ======================================================= */
 
-  const speakAdvice =
-    (text) => {
+  const speakAdvice = (text) => {
+    const cleanText = String(text || "").replace(/\s+/g, " ").trim();
 
-      if (
-        !window.speechSynthesis
-      ) {
+    if (!cleanText) return;
 
-        alert(
-          "Voice is not supported in this browser."
-        );
+    if (typeof window === "undefined" || !window.speechSynthesis || !window.SpeechSynthesisUtterance) {
+      alert("Text-to-speech is not supported in this browser. Please use Google Chrome or Microsoft Edge.");
+      return;
+    }
 
-        return;
-      }
+    const synth = window.speechSynthesis;
+    synth.cancel();
+    try { synth.resume(); } catch {}
 
-      if (!text) {
-        return;
-      }
+    const speakNow = () => {
+      const voices = synth.getVoices();
+      const urduVoice = voices.find((voice) => {
+        const lang = String(voice?.lang || "").toLowerCase();
+        return lang === "ur-pk" || lang.startsWith("ur-") || lang === "ur";
+      });
 
-      window.speechSynthesis.cancel();
+      // Short chunks are more reliable in Chrome/Edge, especially for Urdu text.
+      const chunks = cleanText.match(/.{1,180}(?:\s|$)/g) || [cleanText];
+      let index = 0;
 
-      const speech =
-        new SpeechSynthesisUtterance(
-          text
-        );
+      const speakNext = () => {
+        if (index >= chunks.length) return;
 
-      speech.lang =
-        voiceLanguage;
+        const utterance = new SpeechSynthesisUtterance(chunks[index].trim());
+        utterance.lang = "ur-PK";
+        utterance.rate = 0.88;
+        utterance.pitch = 1;
+        utterance.volume = 1;
 
-      speech.rate = 0.9;
-      speech.pitch = 1;
+        // Prefer an installed Urdu voice; otherwise let the browser use its default voice
+        // while retaining the Urdu language tag.
+        if (urduVoice) utterance.voice = urduVoice;
 
-      window.speechSynthesis.speak(
-        speech
-      );
+        utterance.onerror = (event) => {
+          console.error("Speech synthesis error:", event);
+        };
+
+        utterance.onend = () => {
+          index += 1;
+          window.setTimeout(speakNext, 40);
+        };
+
+        try {
+          synth.speak(utterance);
+          window.setTimeout(() => {
+            try {
+              if (!synth.speaking) synth.resume();
+            } catch {}
+          }, 120);
+        } catch (error) {
+          console.error("Speech start error:", error);
+        }
+      };
+
+      speakNext();
     };
 
-  /* =========================================================
+    const voices = synth.getVoices();
+    if (voices.length) {
+      speakNow();
+      return;
+    }
+
+    let handled = false;
+    const handleVoicesChanged = () => {
+      if (handled) return;
+      handled = true;
+      synth.removeEventListener?.("voiceschanged", handleVoicesChanged);
+      speakNow();
+    };
+
+    synth.addEventListener?.("voiceschanged", handleVoicesChanged);
+    // Some browsers don't fire voiceschanged reliably; try once after a short delay.
+    window.setTimeout(() => {
+      if (!handled) {
+        handled = true;
+        synth.removeEventListener?.("voiceschanged", handleVoicesChanged);
+        speakNow();
+      }
+    }, 900);
+  };
+
+  /* =======================================================
      WEATHER + LOCATION
-  ========================================================= */
+  ======================================================= */
 
   const getLocationWeather =
     () => {
-
       if (
         !navigator.geolocation
       ) {
-
         setWeatherError(
-          "Location services are not supported by this browser."
+          "اس براؤزر میں لوکیشن سروس دستیاب نہیں ہے۔"
         );
 
         return;
@@ -4194,7 +4032,6 @@ function App() {
 
       navigator.geolocation.getCurrentPosition(
         async (position) => {
-
           const latitude =
             position.coords.latitude;
 
@@ -4202,12 +4039,6 @@ function App() {
             position.coords.longitude;
 
           try {
-
-            /*
-              Open-Meteo provides weather without requiring
-              an API key.
-            */
-
             const weatherUrl =
               `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,relative_humidity_2m,precipitation,weather_code,wind_speed_10m&hourly=precipitation_probability&forecast_days=1&timezone=auto`;
 
@@ -4218,7 +4049,7 @@ function App() {
 
             if (!weatherResponse.ok) {
               throw new Error(
-                "Unable to load weather information."
+                "موسم کی معلومات لوڈ نہیں ہو سکیں۔"
               );
             }
 
@@ -4245,7 +4076,6 @@ function App() {
                 hourly.precipitation_probability
               )
             ) {
-
               const index =
                 hourly.time.findIndex(
                   (time) =>
@@ -4254,7 +4084,6 @@ function App() {
                 );
 
               if (index >= 0) {
-
                 precipitationProbability =
                   Number(
                     hourly
@@ -4262,7 +4091,6 @@ function App() {
                       index
                     ] || 0
                   );
-
               }
             }
 
@@ -4300,19 +4128,13 @@ function App() {
               precipitationProbability,
             });
 
-            /*
-              Reverse geocoding gives a readable place name.
-            */
-
             try {
-
               const geoResponse =
                 await fetch(
                   `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=en&format=json`
                 );
 
               if (geoResponse.ok) {
-
                 const geoData =
                   await geoResponse.json();
 
@@ -4320,7 +4142,6 @@ function App() {
                   geoData.results?.[0];
 
                 if (place) {
-
                   const parts = [
                     place.name,
                     place.admin2,
@@ -4331,25 +4152,26 @@ function App() {
                     [...new Set(parts)]
                       .join(", ")
                   );
-
                 } else {
-
                   setLocationName(
-                    `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
+                    `${latitude.toFixed(
+                      2
+                    )}, ${longitude.toFixed(
+                      2
+                    )}`
                   );
-
                 }
-
               }
-
             } catch {
               setLocationName(
-                `${latitude.toFixed(2)}, ${longitude.toFixed(2)}`
+                `${latitude.toFixed(
+                  2
+                )}, ${longitude.toFixed(
+                  2
+                )}`
               );
             }
-
           } catch (err) {
-
             console.error(
               "WEATHER ERROR:",
               err
@@ -4357,33 +4179,29 @@ function App() {
 
             setWeatherError(
               err.message ||
-              "Unable to load weather information."
+              "موسم کی معلومات لوڈ نہیں ہو سکیں۔"
             );
-
           } finally {
-
             setWeatherLoading(false);
             setLocationLoading(false);
-
           }
         },
 
         (geoError) => {
-
           console.error(
             "LOCATION ERROR:",
             geoError
           );
 
           let message =
-            "Unable to access your location.";
+            "آپ کی لوکیشن حاصل نہیں ہو سکی۔";
 
           if (
             geoError.code ===
             geoError.PERMISSION_DENIED
           ) {
             message =
-              "Location permission was denied. Please allow location access in your browser and try again.";
+              "لوکیشن کی اجازت نہیں دی گئی۔ براہِ کرم براؤزر میں لوکیشن کی اجازت دیں اور دوبارہ کوشش کریں۔";
           }
 
           if (
@@ -4391,7 +4209,7 @@ function App() {
             geoError.POSITION_UNAVAILABLE
           ) {
             message =
-              "Your location could not be determined.";
+              "آپ کی لوکیشن معلوم نہیں کی جا سکی۔";
           }
 
           if (
@@ -4399,7 +4217,7 @@ function App() {
             geoError.TIMEOUT
           ) {
             message =
-              "Location request timed out. Please try again.";
+              "لوکیشن حاصل کرنے کی درخواست کا وقت ختم ہو گیا۔ دوبارہ کوشش کریں۔";
           }
 
           setWeatherError(message);
@@ -4416,356 +4234,290 @@ function App() {
       );
     };
 
-  /* =========================================================
-     VOICE QUESTION ANSWER
-  ========================================================= */
+  /* =======================================================
+     OFFICER VOICE RECORDING
+  ======================================================= */
 
-  const createVoiceAnswer =
-    (question) => {
-
-      const lowerQuestion =
-        question.toLowerCase();
-
-      const latestResult =
-        analysisResult ||
-        (
-          cases.length > 0
-            ? {
-                crop: cases[0].crop,
-                disease: cases[0].disease,
-                confidence:
-                  cases[0].confidence,
-              }
-            : null
-        );
-
-      if (!latestResult) {
-
-        return (
-          "Please upload a wheat crop image first. " +
-          "After the AI analysis, you can ask me about disease, treatment, prevention or weather."
-        );
-      }
-
-      const disease =
-        formatDiseaseName(
-          latestResult.disease
-        );
-
-      const currentAdvisory =
-        getDiseaseAdvice(
-          latestResult.disease
-        );
-
+  const startOfficerRecording =
+    async () => {
       if (
-        lowerQuestion.includes("disease") ||
-        lowerQuestion.includes("bimari") ||
-        lowerQuestion.includes("مرض") ||
-        lowerQuestion.includes("what") ||
-        lowerQuestion.includes("kya")
+        typeof window === "undefined" ||
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
       ) {
-
-        return (
-          `The AI detected possible ${disease} in your wheat crop with ${latestResult.confidence} percent confidence. Please ask an Agriculture Officer for final verification.`
-        );
-      }
-
-      if (
-        lowerQuestion.includes("treatment") ||
-        lowerQuestion.includes("ilaaj") ||
-        lowerQuestion.includes("ilaj") ||
-        lowerQuestion.includes("treat")
-      ) {
-
-        return currentAdvisory.treatment;
-      }
-
-      if (
-        lowerQuestion.includes("pesticide") ||
-        lowerQuestion.includes("spray") ||
-        lowerQuestion.includes("dawai") ||
-        lowerQuestion.includes("medicine")
-      ) {
-
-        return currentAdvisory.pesticide;
-      }
-
-      if (
-        lowerQuestion.includes("prevention") ||
-        lowerQuestion.includes("bachao") ||
-        lowerQuestion.includes("prevent")
-      ) {
-
-        return currentAdvisory.prevention;
-      }
-
-      if (
-        lowerQuestion.includes("weather") ||
-        lowerQuestion.includes("mosam") ||
-        lowerQuestion.includes("mausam") ||
-        lowerQuestion.includes("rain") ||
-        lowerQuestion.includes("barish")
-      ) {
-
-        if (weather) {
-
-          const spray =
-            getSprayAlert(weather);
-
-          return (
-            `The current temperature is ${Math.round(
-              weather.temperature
-            )} degrees Celsius. Humidity is ${
-              weather.humidity
-            } percent and wind speed is ${
-              Math.round(weather.windSpeed)
-            } kilometers per hour. Spray alert: ${
-              spray.title
-            }. ${spray.message}`
-          );
-
-        }
-
-        return (
-          "Please use your location first so I can check the current local weather conditions."
-        );
-      }
-
-      if (
-        lowerQuestion.includes("hello") ||
-        lowerQuestion.includes("salam") ||
-        lowerQuestion.includes("assalam")
-      ) {
-
-        return (
-          "Wa Alaikum Assalam. I am Kissan Advisor. You can ask me about your wheat disease, treatment, pesticide guidance, prevention or weather."
-        );
-      }
-
-      return (
-        `Your latest AI result is possible ${disease} with ${latestResult.confidence} percent confidence. You can ask me about its treatment, pesticide guidance, prevention or current weather conditions.`
-      );
-    };
-
-  /* =========================================================
-     START VOICE INPUT
-  ========================================================= */
-
-  const startVoiceInput =
-    () => {
-
-      const SpeechRecognition =
-        window.SpeechRecognition ||
-        window.webkitSpeechRecognition;
-
-      if (!SpeechRecognition) {
-
         alert(
-          "Voice recognition is not supported in this browser. Please use Google Chrome or Microsoft Edge."
+          "آپ کے براؤزر میں وائس ریکارڈنگ دستیاب نہیں ہے۔ Google Chrome یا Microsoft Edge استعمال کریں۔"
         );
 
         return;
       }
 
-      if (recognitionRef.current) {
-
-        try {
-          recognitionRef.current.stop();
-        } catch {
-          // Ignore
-        }
-      }
-
-      const recognition =
-        new SpeechRecognition();
-
-      recognition.lang =
-        voiceLanguage;
-
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.maxAlternatives = 1;
-
-      recognition.onstart = () => {
-
-        setIsListening(true);
-        setVoiceTranscript("");
-        setVoiceAnswer("");
-      };
-
-      recognition.onresult =
-        (event) => {
-
-          const transcript =
-            event.results?.[0]?.[0]?.transcript ||
-            "";
-
-          setVoiceTranscript(
-            transcript
-          );
-
-          const answer =
-            createVoiceAnswer(
-              transcript
-            );
-
-          setVoiceAnswer(
-            answer
-          );
-
-          setTimeout(() => {
-            speakAdvice(answer);
-          }, 150);
-        };
-
-      recognition.onerror =
-        (event) => {
-
-          console.error(
-            "VOICE RECOGNITION ERROR:",
-            event
-          );
-
-          if (
-            event.error ===
-            "not-allowed"
-          ) {
-
-            setVoiceAnswer(
-              "Microphone permission was denied. Please allow microphone access and try again."
-            );
-
-          } else if (
-            event.error ===
-            "no-speech"
-          ) {
-
-            setVoiceAnswer(
-              "I could not hear your question. Please try speaking again."
-            );
-
-          } else {
-
-            setVoiceAnswer(
-              "Voice recognition could not complete. Please try again."
-            );
-          }
-
-          setIsListening(false);
-        };
-
-      recognition.onend = () => {
-        setIsListening(false);
-      };
-
-      recognitionRef.current =
-        recognition;
-
       try {
+        if (mediaRecorderRef.current) {
+          try {
+            if (
+              mediaRecorderRef.current.state !==
+              "inactive"
+            ) {
+              mediaRecorderRef.current.stop();
+            }
+          } catch {
+            // Ignore
+          }
+        }
 
-        recognition.start();
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            audio: true,
+          });
 
-      } catch (err) {
+        let mimeType = "";
 
+        if (
+          typeof MediaRecorder !==
+            "undefined" &&
+          MediaRecorder.isTypeSupported(
+            "audio/webm;codecs=opus"
+          )
+        ) {
+          mimeType =
+            "audio/webm;codecs=opus";
+        } else if (
+          typeof MediaRecorder !==
+            "undefined" &&
+          MediaRecorder.isTypeSupported(
+            "audio/webm"
+          )
+        ) {
+          mimeType =
+            "audio/webm";
+        }
+
+        const recorder =
+          mimeType
+            ? new MediaRecorder(
+                stream,
+                { mimeType }
+              )
+            : new MediaRecorder(
+                stream
+              );
+
+        mediaChunksRef.current = [];
+
+        recorder.ondataavailable =
+          (event) => {
+            if (
+              event.data &&
+              event.data.size > 0
+            ) {
+              mediaChunksRef.current.push(
+                event.data
+              );
+            }
+          };
+
+        recorder.onstop =
+          () => {
+            const blob =
+              new Blob(
+                mediaChunksRef.current,
+                {
+                  type:
+                    recorder.mimeType ||
+                    "audio/webm",
+                }
+              );
+
+            stream
+              .getTracks()
+              .forEach(
+                (track) =>
+                  track.stop()
+              );
+
+            if (!blob.size) {
+              setIsOfficerRecording(
+                false
+              );
+
+              return;
+            }
+
+            const reader =
+              new FileReader();
+
+            reader.onloadend =
+              () => {
+                const audioData =
+                  reader.result || "";
+
+                setOfficerVoiceNote(
+                  audioData
+                );
+
+                setOfficerVoicePreview(
+                  audioData
+                );
+              };
+
+            reader.readAsDataURL(blob);
+
+            setIsOfficerRecording(
+              false
+            );
+          };
+
+        recorder.onerror =
+          (event) => {
+            console.error(
+              "OFFICER RECORDING ERROR:",
+              event
+            );
+
+            stream
+              .getTracks()
+              .forEach(
+                (track) =>
+                  track.stop()
+              );
+
+            setIsOfficerRecording(
+              false
+            );
+
+            alert(
+              "وائس ریکارڈنگ مکمل نہیں ہو سکی۔ دوبارہ کوشش کریں۔"
+            );
+          };
+
+        mediaRecorderRef.current =
+          recorder;
+
+        recorder.start();
+
+        setOfficerVoiceNote("");
+        setOfficerVoicePreview("");
+        setIsOfficerRecording(true);
+      } catch (error) {
         console.error(
-          "VOICE START ERROR:",
-          err
+          "OFFICER VOICE ERROR:",
+          error
         );
 
-        setIsListening(false);
+        setIsOfficerRecording(
+          false
+        );
 
-      }
-    };
-
-  /* =========================================================
-     STOP VOICE INPUT
-  ========================================================= */
-
-  const stopVoiceInput =
-    () => {
-
-      if (
-        recognitionRef.current
-      ) {
-
-        try {
-          recognitionRef.current.stop();
-        } catch {
-          // Ignore
+        if (
+          error?.name ===
+          "NotAllowedError"
+        ) {
+          alert(
+            "مائیکروفون کی اجازت نہیں دی گئی۔ براہِ کرم مائیکروفون کی اجازت دیں۔"
+          );
+        } else {
+          alert(
+            "وائس ریکارڈنگ شروع نہیں ہو سکی۔"
+          );
         }
       }
-
-      setIsListening(false);
     };
 
-  /* =========================================================
+  /* =======================================================
+     STOP OFFICER RECORDING
+  ======================================================= */
+
+  const stopOfficerRecording =
+    () => {
+      const recorder =
+        mediaRecorderRef.current;
+
+      if (!recorder) {
+        setIsOfficerRecording(
+          false
+        );
+
+        return;
+      }
+
+      try {
+        if (
+          recorder.state !==
+          "inactive"
+        ) {
+          recorder.stop();
+        }
+      } catch (error) {
+        console.error(
+          "STOP OFFICER RECORDING ERROR:",
+          error
+        );
+
+        setIsOfficerRecording(
+          false
+        );
+      }
+    };
+
+  /* =======================================================
+     CLEAR OFFICER VOICE
+  ======================================================= */
+
+  const clearOfficerVoiceNote =
+    () => {
+      setOfficerVoiceNote("");
+      setOfficerVoicePreview("");
+    };
+
+  /* =======================================================
      PAGE ROUTING
-  ========================================================= */
+  ======================================================= */
 
   return (
     <>
-
-      {/* HOME */}
-
       {page === "home" && (
-
         <Home
           setPage={setPage}
           setFarmerMode={
             setFarmerMode
           }
         />
-
       )}
 
-      {/* FARMER AUTH */}
-
       {page === "auth" && (
-
         <Auth
           farmerMode={
             farmerMode
           }
-
           setFarmerMode={
             setFarmerMode
           }
-
           formData={
             formData
           }
-
           setFormData={
             setFormData
           }
-
           handleAuth={
             handleAuth
           }
-
           loading={
             loading
           }
-
           error={
             error
           }
-
           setError={
             setError
           }
-
           setPage={
             setPage
           }
         />
-
       )}
 
-      {/* OFFICER LOGIN */}
-
       {page === "officer-login" && (
-
         <StaffLogin
           staffRole="officer"
           setPage={setPage}
@@ -4773,13 +4525,9 @@ function App() {
             handleStaffLogin
           }
         />
-
       )}
 
-      {/* ADMIN LOGIN */}
-
       {page === "admin-login" && (
-
         <StaffLogin
           staffRole="admin"
           setPage={setPage}
@@ -4787,221 +4535,192 @@ function App() {
             handleStaffLogin
           }
         />
-
       )}
-
-      {/* FARMER DASHBOARD */}
 
       {page === "dashboard" &&
         farmer &&
         farmer.role === "farmer" && (
-
           <Dashboard
-
             farmer={
               farmer
             }
-
             cases={
               cases
             }
-
             selectedFile={
               selectedFile
             }
-
             selectedImage={
               selectedImage
             }
-
             isAnalyzing={
               isAnalyzing
             }
-
             showResult={
               showResult
             }
-
             analysisResult={
               analysisResult
             }
-
             error={
               error
             }
-
-            voiceLanguage={
-              voiceLanguage
-            }
-
-            setVoiceLanguage={
-              setVoiceLanguage
-            }
-
             fileInputRef={
               fileInputRef
             }
-
             handleImageChange={
               handleImageChange
             }
-
             handleAnalyze={
               handleAnalyze
             }
-
             loadFarmerCases={
               loadFarmerCases
             }
-
             speakAdvice={
               speakAdvice
             }
-
             logout={
               logout
             }
-
             shareCase={
               shareCase
             }
-
             weather={
               weather
             }
-
             locationName={
               locationName
             }
-
             weatherLoading={
               weatherLoading
             }
-
             locationLoading={
               locationLoading
             }
-
             weatherError={
               weatherError
             }
-
             getLocationWeather={
               getLocationWeather
             }
-
-            startVoiceInput={
-              startVoiceInput
-            }
-
-            stopVoiceInput={
-              stopVoiceInput
-            }
-
-            isListening={
-              isListening
-            }
-
-            voiceTranscript={
-              voiceTranscript
-            }
-
-            voiceAnswer={
-              voiceAnswer
-            }
-
           />
-
         )}
-
-      {/* OFFICER DASHBOARD */}
 
       {page === "officer" &&
         staffUser &&
         staffUser.role === "officer" && (
-
           <OfficerDashboard
-
             cases={
               cases
             }
-
             selectedCase={
               selectedCase
             }
-
             setSelectedCase={
-              setSelectedCase
-            }
+              (caseItem) => {
+                setSelectedCase(
+                  caseItem
+                );
 
+                setAdvice("");
+                setCorrectDiagnosis("");
+
+                const parsedAdvice =
+                  parseAdvice(
+                    caseItem?.advice
+                  );
+
+                if (
+                  parsedAdvice.text
+                ) {
+                  setAdvice(
+                    parsedAdvice.text
+                  );
+                }
+
+                setOfficerVoiceNote("");
+                setOfficerVoicePreview("");
+              }
+            }
             advice={
               advice
             }
-
             setAdvice={
               setAdvice
             }
-
+            pesticideRecommendation={
+              pesticideRecommendation
+            }
+            setPesticideRecommendation={
+              setPesticideRecommendation
+            }
+            otherProductRecommendation={
+              otherProductRecommendation
+            }
+            setOtherProductRecommendation={
+              setOtherProductRecommendation
+            }
             loadOfficerCases={
               loadOfficerCases
             }
-
             verifyCase={
               verifyCase
             }
-
             sendAdvice={
               sendAdvice
             }
-
             speakAdvice={
               speakAdvice
             }
-
             setPage={
               setPage
             }
-
             correctDiagnosis={
               correctDiagnosis
             }
-
             setCorrectDiagnosis={
               setCorrectDiagnosis
             }
-
             logout={
               staffLogout
             }
-
+            startOfficerRecording={
+              startOfficerRecording
+            }
+            stopOfficerRecording={
+              stopOfficerRecording
+            }
+            isOfficerRecording={
+              isOfficerRecording
+            }
+            officerVoiceNote={
+              officerVoiceNote
+            }
+            officerVoicePreview={
+              officerVoicePreview
+            }
+            clearOfficerVoiceNote={
+              clearOfficerVoiceNote
+            }
           />
-
         )}
-
-      {/* ADMIN DASHBOARD */}
 
       {page === "admin" &&
         staffUser &&
         staffUser.role === "admin" && (
-
           <AdminDashboard
-
             cases={
               cases
             }
-
             setPage={
               setPage
             }
-
             logout={
               staffLogout
             }
-
           />
-
         )}
-
     </>
   );
 }
