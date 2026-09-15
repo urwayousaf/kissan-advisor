@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import "./App.css";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL = "https://server-esg7i4hyd-solo-c06c.vercel.app/api";
 const AI_URL = "http://127.0.0.1:8000";
 
 /* =========================================================
